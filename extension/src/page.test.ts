@@ -32,6 +32,32 @@ test("snapshot node can be clicked through a fresh backend DOM reference", async
   }
 });
 
+test("a second reader snapshot does not invalidate the first reader", async () => {
+  const original = globalThis.chrome;
+  let clicks = 0;
+  (globalThis as unknown as { chrome: unknown }).chrome = {
+    tabs: { get: async (id: number) => ({ id, url: "https://example.com", incognito: false }) },
+    debugger: {
+      attach: async () => {}, detach: async () => {},
+      sendCommand: async (_target: unknown, method: string) => {
+        if (method === "Accessibility.getFullAXTree") return { nodes: [{ backendDOMNodeId: 42, role: { value: "button" }, name: { value: "Go" } }] };
+        if (method === "DOM.getBoxModel") return { model: { content: [0, 0, 20, 0, 20, 20, 0, 20] } };
+        if (method === "Input.dispatchMouseEvent") clicks++;
+        return {};
+      },
+    },
+  };
+  try {
+    const first = await snapshotPage(701);
+    const second = await snapshotPage(701);
+    assert.notEqual(first.snapshotId, second.snapshotId);
+    await clickNode(701, first.snapshotId, first.nodes[0].nodeRef);
+    assert.equal(clicks, 2);
+  } finally {
+    (globalThis as unknown as { chrome: unknown }).chrome = original;
+  }
+});
+
 test("screenshot returns bounded PNG bytes", async () => {
   const original = globalThis.chrome;
   (globalThis as unknown as { chrome: unknown }).chrome = {
@@ -119,6 +145,40 @@ test("wait for text observes page state until the text appears", async () => {
   try {
     assert.deepEqual(await waitForText(7, "Ready", 500), { found: true });
     assert.equal(checks, 2);
+  } finally {
+    (globalThis as unknown as { chrome: unknown }).chrome = original;
+  }
+});
+
+test("text waiting yields the debugger between polls for another reader", async () => {
+  const original = globalThis.chrome;
+  let markFirst!: () => void;
+  const firstPoll = new Promise<void>((resolve) => { markFirst = resolve; });
+  let polls = 0;
+  (globalThis as unknown as { chrome: unknown }).chrome = {
+    tabs: { get: async (id: number) => ({ id, url: "https://example.com", incognito: false }) },
+    debugger: {
+      attach: async () => {}, detach: async () => {},
+      sendCommand: async (_target: unknown, method: string) => {
+        if (method === "Runtime.evaluate") {
+          if (++polls === 1) markFirst();
+          return { result: { value: polls >= 3 } };
+        }
+        if (method === "Page.captureScreenshot") return { data: "aGVsbG8=" };
+        return {};
+      },
+    },
+  };
+  try {
+    const waiting = waitForText(71, "Ready", 500);
+    await firstPoll;
+    const screenshot = screenshotPage(71);
+    const earliest = await Promise.race([
+      screenshot.then(() => "screenshot"),
+      new Promise((resolve) => setTimeout(() => resolve("blocked"), 70)),
+    ]);
+    assert.equal(earliest, "screenshot");
+    assert.deepEqual(await waiting, { found: true });
   } finally {
     (globalThis as unknown as { chrome: unknown }).chrome = original;
   }

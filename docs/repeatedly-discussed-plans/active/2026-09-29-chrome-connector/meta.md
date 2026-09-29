@@ -48,6 +48,7 @@ review_profile:
 | `../../../decisions/0001-local-browser-agent-contract.md` | 公开接口与信任边界 ADR |
 | `tasks.md` | 用户选择 L2 编排后的完整范围实施清单 |
 | `history/spike_r1.md` | 运行中 Chrome 接入的本机验证与清理证据 |
+| `history/e2e.md` | 初版与审阅修复后的本机验收、边界及回滚证据 |
 
 ## 需求摘要
 
@@ -76,7 +77,7 @@ review_profile:
 - Chrome 官方 Native Messaging 文档规定宿主通过标准输入输出与获准扩展通信，`allowed_origins` 为扩展 ID 列表，不支持通配。
 - Chrome 官方文档说明 `connectNative` 可维持扩展 service worker 生命周期，且 `chrome.debugger` 可用的 CDP 协议域受限制。
 - 项目目录创建前为空，没有既有 ADR 或方案；已初始化独立 Git 仓库。
-- 正式项目扩展尚未安装；临时测试扩展验证了运行中注册宿主与重载恢复，正式 Go 宿主仍需在交付验收中复核。
+- 方案制定时正式项目扩展尚未安装；实施后已在现有 Chrome 中完成正式 Go 宿主、broker、CLI/MCP 和页面操作验收，证据见 `history/e2e.md`。
 - 首项 spike 已完成：临时未打包扩展在运行中 Chrome 加载成功，用户级宿主清单注册后可握手，扩展重载后重新握手，Chrome PID 不变且无远程调试参数。测试扩展与宿主清单已清理。详情见 `history/spike_r1.md`。
 - 正式项目扩展从仓库 `extension/dist` 加载；Application Support 下的目录无法由本机 Chrome 文件选择器选中。Go 宿主位于 Application Support，CLI/MCP/页面操作的真实链路已验证；方案路径修订归档为 `history/plan_v4.md`。
 
@@ -86,6 +87,10 @@ review_profile:
 - 首版不复制 ChatGPT 扩展代码或私有通信协议，使用 Chrome 官方扩展 API 独立实现。
 - 第 1 轮评审的 P0 安装交付分歧由用户选择本机未打包扩展方案；C2/C3/C4/X2/X3 的其余合理建议已自动纳入修改版。
 - 用户确认 plan_v2 为最终方向；ADR-0001 记录公开接口与同用户信任边界，plan_v3 仅新增 ADR 引用。
+
+## 实施进度
+
+扩展、宿主、按需 broker、CLI、MCP、安装器和 skill 均已实现。审阅修复包括快照隔离、同标签页调试器串行、运行中升级/回滚接管和协议不兼容诊断。单 Chrome 配置文件的真实浏览器验收已完成；第二配置文件、其他系统用户和 DevTools 现场占用仍在 `tasks.md` 保留为未完成验收项。Chrome 保持原进程运行，项目扩展按用户授权保留安装。
 
 ## 任务档位
 

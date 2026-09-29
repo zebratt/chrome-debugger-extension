@@ -5,7 +5,23 @@ export const SUPPORTED_CDP_DOMAINS = [
   "Runtime", "Storage", "Target", "Tracing", "WebAudio", "WebAuthn",
 ] as const;
 
+const tabQueues = new Map<number, Promise<void>>();
+
+async function acquireTab(tabId: number): Promise<() => void> {
+  const previous = tabQueues.get(tabId) || Promise.resolve();
+  let unlock!: () => void;
+  const current = new Promise<void>((resolve) => { unlock = resolve; });
+  const tail = previous.then(() => current);
+  tabQueues.set(tabId, tail);
+  await previous;
+  return () => {
+    unlock();
+    if (tabQueues.get(tabId) === tail) tabQueues.delete(tabId);
+  };
+}
+
 export async function withDebugger<T>(tabId: number, action: (send: (method: string, params: Record<string, unknown>) => Promise<unknown>) => Promise<T>, timeoutMs = 10000): Promise<T> {
+  const releaseTab = await acquireTab(tabId);
   const target = { tabId };
   let timer: ReturnType<typeof setTimeout> | undefined;
   const timeout = new Promise<never>((_, reject) => {
@@ -46,6 +62,7 @@ export async function withDebugger<T>(tabId: number, action: (send: (method: str
         if (detachTimer !== undefined) clearTimeout(detachTimer);
       }
     }
+    releaseTab();
   }
 }
 

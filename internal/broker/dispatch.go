@@ -6,7 +6,14 @@ import (
 	"time"
 
 	"chrome-connector/internal/protocol"
+	"chrome-connector/internal/version"
 )
+
+var publicMethods = []string{
+	"system.ping", "system.policy", "system.capabilities", "browser.list",
+	"tab.list", "tab.open", "tab.info", "tab.navigate", "tab.snapshot", "tab.screenshot",
+	"tab.claim", "tab.renew", "tab.release", "tab.click", "tab.type", "tab.key", "tab.scroll", "tab.wait", "cdp.send",
+}
 
 func (server *Server) handleClient(conn net.Conn, decoder *json.Decoder, first json.RawMessage) {
 	server.mutex.Lock()
@@ -23,10 +30,16 @@ func (server *Server) handleClient(conn net.Conn, decoder *json.Decoder, first j
 	current := first
 	for {
 		request, err := protocol.DecodeRequest(current)
+		shutdown := false
 		if err != nil {
 			encoder.Encode(protocol.ErrorResponse(nil, "INVALID_REQUEST", err.Error(), false))
 		} else {
 			encoder.Encode(server.dispatch(request))
+			shutdown = request.Method == "system.shutdown"
+		}
+		if shutdown {
+			server.stopOnce.Do(func() { close(server.stopRequested) })
+			return
 		}
 		if err := decoder.Decode(&current); err != nil {
 			return
@@ -41,22 +54,48 @@ func (server *Server) dispatch(request protocol.Request) protocol.Response {
 	switch request.Method {
 	case "system.ping":
 		return successResponse(request.ID, map[string]any{"protocolVersion": ProtocolVersion, "status": server.discoveryState()})
+	case "system.shutdown":
+		return successResponse(request.ID, map[string]any{"stopping": true})
+	case "extension.reload":
+		var params struct {
+			ProfileID string `json:"profileId"`
+		}
+		if err := json.Unmarshal(request.Params, &params); err != nil || params.ProfileID == "" {
+			return protocol.ErrorResponse(request.ID, "INVALID_PARAMS", "profileId is required", false)
+		}
+		return server.forward(params.ProfileID, request)
 	case "system.policy":
 		return successResponse(request.ID, server.policy)
 	case "system.capabilities":
 		server.mutex.Lock()
 		profiles := make([]map[string]any, 0, len(server.hosts))
 		for _, host := range server.hosts {
-			profiles = append(profiles, map[string]any{"profileId": host.profileID, "extensionVersion": host.extensionVersion, "supportedCdpDomains": host.supportedCDPDomains})
+			effective := make([]string, 0)
+			if server.policy.RawCDP {
+				for _, domain := range host.supportedCDPDomains {
+					for _, allowed := range server.policy.CDPDomains {
+						if domain == allowed {
+							effective = append(effective, domain)
+							break
+						}
+					}
+				}
+			}
+			profiles = append(profiles, map[string]any{"profileId": host.profileID, "hostVersion": host.hostVersion, "extensionVersion": host.extensionVersion, "browserVersion": host.browserVersion, "supportedCdpDomains": host.supportedCDPDomains, "effectiveCdpDomains": effective})
 		}
 		server.mutex.Unlock()
-		return successResponse(request.ID, map[string]any{"protocolVersion": ProtocolVersion, "rawCdpEnabled": server.policy.RawCDP, "allowedCdpDomains": server.policy.CDPDomains, "profiles": profiles})
+		return successResponse(request.ID, map[string]any{"protocolVersion": ProtocolVersion, "brokerVersion": version.Component, "methods": publicMethods, "rawCdpEnabled": server.policy.RawCDP, "allowedCdpDomains": server.policy.CDPDomains, "profiles": profiles})
 	case "browser.list":
 		server.waitForRegistration()
 		server.mutex.Lock()
 		profiles := make([]map[string]any, 0, len(server.hosts))
 		for _, host := range server.hosts {
-			profiles = append(profiles, map[string]any{"profileId": host.profileID, "status": "online", "protocolVersion": host.version, "extensionVersion": host.extensionVersion})
+			profiles = append(profiles, map[string]any{"profileId": host.profileID, "connectionId": host.connectionID, "status": "online", "protocolVersion": host.version, "hostVersion": host.hostVersion, "extensionVersion": host.extensionVersion, "browserVersion": host.browserVersion})
+		}
+		for profileID, rejected := range server.rejected {
+			if server.hosts[profileID] == nil {
+				profiles = append(profiles, map[string]any{"profileId": profileID, "status": "version_mismatch", "protocolVersion": rejected.protocolVersion, "expectedProtocolVersion": ProtocolVersion, "extensionVersion": rejected.extensionVersion})
+			}
 		}
 		server.mutex.Unlock()
 		return successResponse(request.ID, map[string]any{"discoveryState": server.discoveryState(), "profiles": profiles})
@@ -253,6 +292,9 @@ func (server *Server) discoveryState() string {
 	if len(server.hosts) > 0 {
 		return "ready"
 	}
+	if len(server.rejected) > 0 {
+		return "version_mismatch"
+	}
 	if time.Since(server.started) < 3*time.Second {
 		return "discovering"
 	}
@@ -261,7 +303,7 @@ func (server *Server) discoveryState() string {
 
 func (server *Server) waitForRegistration() {
 	server.mutex.Lock()
-	hasHost := len(server.hosts) > 0
+	hasHost := len(server.hosts) > 0 || len(server.rejected) > 0
 	server.mutex.Unlock()
 	if hasHost {
 		return

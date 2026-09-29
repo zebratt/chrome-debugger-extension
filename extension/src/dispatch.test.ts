@@ -91,3 +91,18 @@ test("page request rejects a tab that changed URL after broker validation", asyn
     (globalThis as unknown as { chrome: unknown }).chrome = original;
   }
 });
+
+test("extension reload acknowledges before scheduling the restart", async () => {
+  const original = globalThis.chrome;
+  let reloaded = false;
+  (globalThis as unknown as { chrome: unknown }).chrome = { runtime: { reload: () => { reloaded = true; } } };
+  try {
+    const response = await handleMessage({ jsonrpc: "2.0", id: "reload", method: "extension.reload" });
+    assert.deepEqual(response.result, { reloading: true });
+    assert.equal(reloaded, false);
+    await new Promise((resolve) => setTimeout(resolve, 5));
+    assert.equal(reloaded, true);
+  } finally {
+    (globalThis as unknown as { chrome: unknown }).chrome = original;
+  }
+});

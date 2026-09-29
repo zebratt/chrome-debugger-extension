@@ -76,6 +76,10 @@ export async function handleMessage(value: unknown) {
         await getTabInfo(params.tabId);
         result = await sendCDPCommand(params.tabId, params.method, typeof params.commandParams === "object" && params.commandParams !== null ? params.commandParams as Record<string, unknown> : {});
         break;
+      case "extension.reload":
+        setTimeout(() => chrome.runtime.reload(), 0);
+        result = { reloading: true };
+        break;
       default:
         return errorResponse(request.id, "METHOD_NOT_FOUND", "Method is not available", false);
     }

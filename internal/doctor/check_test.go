@@ -21,7 +21,7 @@ func TestCheckReportsRegisteredHostAndPrivatePolicy(t *testing.T) {
 		t.Fatal(err)
 	}
 	report := Check(manifest, policy)
-	if !report.HostManifest || !report.HostBinary || !report.PolicyValid || report.ExtensionID != "lmomiiblpebceaecbnlknkbnanhhdigi" || len(report.Issues) != 0 {
+	if !report.HostManifest || !report.HostBinary || !report.PolicyValid || report.ExtensionID != "lmomiiblpebceaecbnlknkbnanhhdigi" || report.HostManifestPath != manifest || report.HostBinaryPath != binary || len(report.Issues) != 0 {
 		t.Fatalf("report %+v", report)
 	}
 }

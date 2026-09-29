@@ -10,18 +10,22 @@ import (
 
 type Report struct {
 	HostManifest          bool              `json:"hostManifest"`
+	HostManifestPath      string            `json:"hostManifestPath"`
 	HostBinary            bool              `json:"hostBinary"`
+	HostBinaryPath        string            `json:"hostBinaryPath,omitempty"`
 	PolicyValid           bool              `json:"policyValid"`
 	ExtensionID           string            `json:"extensionId,omitempty"`
 	BrowserState          string            `json:"browserState,omitempty"`
 	ConnectedProfiles     int               `json:"connectedProfiles"`
 	BrokerProtocolVersion string            `json:"brokerProtocolVersion,omitempty"`
+	BrokerVersion         string            `json:"brokerVersion,omitempty"`
 	ExtensionVersions     map[string]string `json:"extensionVersions,omitempty"`
+	HostVersions          map[string]string `json:"hostVersions,omitempty"`
 	Issues                []string          `json:"issues"`
 }
 
 func Check(manifestPath, policyPath string) Report {
-	report := Report{Issues: make([]string, 0)}
+	report := Report{HostManifestPath: manifestPath, Issues: make([]string, 0)}
 	contents, err := os.ReadFile(manifestPath)
 	if err != nil {
 		report.Issues = append(report.Issues, "Native Messaging host manifest is missing")
@@ -35,6 +39,7 @@ func Check(manifestPath, policyPath string) Report {
 			report.Issues = append(report.Issues, "Native Messaging host manifest is invalid")
 		} else {
 			report.HostManifest = true
+			report.HostBinaryPath = manifest.Path
 			origin := manifest.AllowedOrigins[0]
 			if strings.HasPrefix(origin, "chrome-extension://") && strings.HasSuffix(origin, "/") {
 				report.ExtensionID = strings.TrimSuffix(strings.TrimPrefix(origin, "chrome-extension://"), "/")

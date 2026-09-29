@@ -90,6 +90,31 @@ func TestCapabilitiesShowCDPDefaultAndProtocolVersion(t *testing.T) {
 	if !ok || result["protocolVersion"] != "1.0" || result["rawCdpEnabled"] != false {
 		t.Fatalf("capabilities %+v", response.Result)
 	}
+	methods, ok := result["methods"].([]string)
+	if !ok || len(methods) < 18 || result["brokerVersion"] == "" {
+		t.Fatalf("public methods or broker version missing: %+v", result)
+	}
+}
+
+func TestCapabilitiesIntersectPolicyAndChromeDomains(t *testing.T) {
+	server := NewServer(policy.Policy{RawCDP: true, CDPDomains: []string{"Page", "Browser"}}, time.Minute)
+	server.hosts["p"] = &hostSession{profileID: "p", version: "1.0", hostVersion: "0.1.0", extensionVersion: "0.1.0", supportedCDPDomains: []string{"Page", "Runtime"}}
+	response := server.dispatch(request("system.capabilities", nil))
+	result := response.Result.(map[string]any)
+	profile := result["profiles"].([]map[string]any)[0]
+	effective := profile["effectiveCdpDomains"].([]string)
+	if len(effective) != 1 || effective[0] != "Page" || profile["hostVersion"] != "0.1.0" {
+		t.Fatalf("capabilities %+v", result)
+	}
+}
+
+func TestMissingExtensionProtocolVersionIsReportedAsMismatch(t *testing.T) {
+	server := NewServer(policy.Default(), time.Minute)
+	server.rejected["p"] = rejectedHost{protocolVersion: ""}
+	response := server.forward("p", request("tab.list", map[string]any{"profileId": "p"}))
+	if response.Error == nil || response.Error.Data.Kind != "VERSION_MISMATCH" {
+		t.Fatalf("missing protocol version %+v", response)
+	}
 }
 
 func TestSentClickWithLostHostResponseIsOutcomeUnknown(t *testing.T) {

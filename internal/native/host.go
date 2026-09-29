@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"chrome-connector/internal/protocol"
+	"chrome-connector/internal/version"
 )
 
 func writeJSONLine(writer io.Writer, payload []byte) error {
@@ -35,13 +36,17 @@ func Run(ctx context.Context, input io.Reader, output io.Writer, socket string) 
 	var hello struct {
 		Kind                string   `json:"kind"`
 		ProfileID           string   `json:"profileId"`
+		ConnectionID        string   `json:"connectionId"`
 		ProtocolVersion     string   `json:"protocolVersion"`
 		ExtensionVersion    string   `json:"extensionVersion"`
+		HostVersion         string   `json:"hostVersion"`
+		BrowserVersion      string   `json:"browserVersion"`
 		SupportedCDPDomains []string `json:"supportedCdpDomains"`
 	}
 	if err := json.Unmarshal(first, &hello); err != nil || hello.Kind != "hello" || hello.ProfileID == "" {
 		return errors.New("invalid extension hello")
 	}
+	hello.HostVersion = version.Component
 
 	var currentMu sync.RWMutex
 	var current net.Conn

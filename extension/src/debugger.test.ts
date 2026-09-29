@@ -110,3 +110,39 @@ test("detached target has a stable error kind", async () => {
     (globalThis as unknown as { chrome: unknown }).chrome = original;
   }
 });
+
+test("two readers of one tab are serialized instead of fighting for debugger attachment", async () => {
+  const original = globalThis.chrome;
+  let attached = false;
+  let attachments = 0;
+  let releaseFirst!: () => void;
+  let markStarted!: () => void;
+  const firstStarted = new Promise<void>((resolve) => { markStarted = resolve; });
+  const firstGate = new Promise<void>((resolve) => { releaseFirst = resolve; });
+  (globalThis as unknown as { chrome: unknown }).chrome = {
+    debugger: {
+      attach: async () => {
+        if (attached) throw new Error("Another debugger is already attached to the tab");
+        attached = true;
+        attachments++;
+      },
+      sendCommand: async () => {
+        if (attachments === 1) { markStarted(); await firstGate; }
+        return { data: "ok" };
+      },
+      detach: async () => { attached = false; },
+    },
+  };
+  try {
+    const first = sendCDPCommand(7, "Page.captureScreenshot", {});
+    await firstStarted;
+    const second = sendCDPCommand(7, "Page.captureScreenshot", {});
+    await new Promise((resolve) => setTimeout(resolve, 5));
+    releaseFirst();
+    const results = await Promise.allSettled([first, second]);
+    assert.deepEqual(results.map((result) => result.status), ["fulfilled", "fulfilled"]);
+    assert.equal(attachments, 2);
+  } finally {
+    (globalThis as unknown as { chrome: unknown }).chrome = original;
+  }
+});

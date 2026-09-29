@@ -23,8 +23,11 @@ type Server struct {
 	started       time.Time
 	mutex         sync.Mutex
 	hosts         map[string]*hostSession
+	rejected      map[string]rejectedHost
 	registered    chan struct{}
 	registerOnce  sync.Once
+	stopOnce      sync.Once
+	stopRequested chan struct{}
 	sequence      uint64
 	activeClients int
 	lastActivity  time.Time
@@ -32,20 +35,25 @@ type Server struct {
 
 func NewServer(activePolicy policy.Policy, idleTimeout time.Duration) *Server {
 	return &Server{
-		policy:       activePolicy,
-		idleTimeout:  idleTimeout,
-		leases:       NewLeaseStore(30*time.Second, time.Now),
-		started:      time.Now(),
-		hosts:        make(map[string]*hostSession),
-		registered:   make(chan struct{}),
-		lastActivity: time.Now(),
+		policy:        activePolicy,
+		idleTimeout:   idleTimeout,
+		leases:        NewLeaseStore(30*time.Second, time.Now),
+		started:       time.Now(),
+		hosts:         make(map[string]*hostSession),
+		rejected:      make(map[string]rejectedHost),
+		registered:    make(chan struct{}),
+		stopRequested: make(chan struct{}),
+		lastActivity:  time.Now(),
 	}
 }
 
 func (server *Server) Serve(ctx context.Context, listener net.Listener) error {
 	defer listener.Close()
 	go func() {
-		<-ctx.Done()
+		select {
+		case <-ctx.Done():
+		case <-server.stopRequested:
+		}
 		listener.Close()
 	}()
 	if server.idleTimeout > 0 {

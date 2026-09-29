@@ -9,8 +9,8 @@ export type BridgeRequest = {
   params?: Record<string, unknown>;
 };
 
-export function makeHello(profileId: string, extensionVersion: string) {
-  return { kind: "hello" as const, profileId, protocolVersion: PROTOCOL_VERSION, extensionVersion, supportedCdpDomains: [...SUPPORTED_CDP_DOMAINS] };
+export function makeHello(profileId: string, extensionVersion: string, browserVersion = navigator.userAgent.match(/Chrome\/([\d.]+)/)?.[1] || "") {
+  return { kind: "hello" as const, profileId, connectionId: crypto.randomUUID(), protocolVersion: PROTOCOL_VERSION, extensionVersion, browserVersion, supportedCdpDomains: [...SUPPORTED_CDP_DOMAINS] };
 }
 
 export function parseRequest(value: unknown): BridgeRequest | null {

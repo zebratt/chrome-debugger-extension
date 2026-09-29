@@ -1,8 +1,27 @@
 import { sendCDPCommand, withDebugger } from "./debugger.ts";
 import { getTabInfo } from "./tabs.ts";
 
-type Snapshot = { id: string; url: string; references: Map<string, number> };
-const snapshots = new Map<number, Snapshot>();
+type Snapshot = { id: string; tabId: number; url: string; references: Map<string, number>; createdAt: number };
+const snapshots = new Map<string, Snapshot>();
+const snapshotTTL = 60_000;
+const maxSnapshotsPerTab = 16;
+
+function pruneSnapshots(tabId: number) {
+  const now = Date.now();
+  for (const [id, snapshot] of snapshots) {
+    if (now - snapshot.createdAt >= snapshotTTL) snapshots.delete(id);
+  }
+  const existing = [...snapshots].filter(([, snapshot]) => snapshot.tabId === tabId);
+  for (const [id] of existing.slice(0, Math.max(0, existing.length - maxSnapshotsPerTab + 1))) {
+    snapshots.delete(id);
+  }
+}
+
+function invalidateTabSnapshots(tabId: number) {
+  for (const [id, snapshot] of snapshots) {
+    if (snapshot.tabId === tabId) snapshots.delete(id);
+  }
+}
 
 export async function snapshotPage(tabId: number) {
   const info = await getTabInfo(tabId);
@@ -17,7 +36,8 @@ export async function snapshotPage(tabId: number) {
     references.set(nodeRef, node.backendDOMNodeId);
     return [{ nodeRef, role: String(node.role?.value || ""), name: String(node.name?.value || "") }];
   });
-  snapshots.set(tabId, { id: snapshotId, url: info.url, references });
+  pruneSnapshots(tabId);
+  snapshots.set(snapshotId, { id: snapshotId, tabId, url: info.url, references, createdAt: Date.now() });
   return { snapshotId, documentId: snapshotId, nodes };
 }
 
@@ -27,14 +47,14 @@ export async function clickNode(tabId: number, snapshotId: string, nodeRef: stri
 }
 
 async function resolveNode(tabId: number, snapshotId: string, nodeRef: string): Promise<number> {
-  const snapshot = snapshots.get(tabId);
+  const snapshot = snapshots.get(snapshotId);
   const backendNodeId = snapshot?.references.get(nodeRef);
-  if (!snapshot || snapshot.id !== snapshotId || backendNodeId === undefined) {
+  if (!snapshot || snapshot.tabId !== tabId || Date.now() - snapshot.createdAt >= snapshotTTL || backendNodeId === undefined) {
     throw new Error("STALE_SNAPSHOT: node reference is no longer valid");
   }
   const info = await getTabInfo(tabId);
   if (info.url !== snapshot.url) {
-    snapshots.delete(tabId);
+    invalidateTabSnapshots(tabId);
     throw new Error("STALE_SNAPSHOT: tab URL changed");
   }
   return backendNodeId;
@@ -94,12 +114,10 @@ export async function waitForText(tabId: number, text: string, timeoutMs: number
   await getTabInfo(tabId);
   const deadline = Date.now() + timeoutMs;
   const expression = `Boolean(document.body && document.body.innerText.includes(${JSON.stringify(text)}))`;
-  return withDebugger(tabId, async (send) => {
-    for (;;) {
-      const response = await send("Runtime.evaluate", { expression, returnByValue: true }) as { result?: { value?: unknown } };
-      if (response.result?.value === true) return { found: true };
-      if (Date.now() >= deadline) throw new Error("TIMEOUT: text did not appear");
-      await new Promise((resolve) => setTimeout(resolve, 100));
-    }
-  });
+  for (;;) {
+    const response = await sendCDPCommand(tabId, "Runtime.evaluate", { expression, returnByValue: true }) as { result?: { value?: unknown } };
+    if (response.result?.value === true) return { found: true };
+    if (Date.now() >= deadline) throw new Error("TIMEOUT: text did not appear");
+    await new Promise((resolve) => setTimeout(resolve, 100));
+  }
 }

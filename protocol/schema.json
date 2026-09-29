@@ -21,7 +21,7 @@
         "id": { "$ref": "#/$defs/id" },
         "method": {
           "enum": [
-            "system.ping", "system.policy", "system.capabilities", "browser.list",
+            "system.ping", "system.policy", "system.capabilities", "system.shutdown", "browser.list", "extension.reload",
             "tab.list", "tab.open", "tab.info", "tab.navigate", "tab.snapshot",
             "tab.screenshot", "tab.claim", "tab.renew", "tab.release",
             "tab.click", "tab.type", "tab.key", "tab.scroll", "tab.wait", "cdp.send"
@@ -70,8 +70,11 @@
       "properties": {
         "kind": { "const": "hello" },
         "profileId": { "type": "string", "minLength": 1 },
+        "connectionId": { "type": "string" },
         "protocolVersion": { "type": "string" },
         "extensionVersion": { "type": "string" },
+        "hostVersion": { "type": "string" },
+        "browserVersion": { "type": "string" },
         "supportedCdpDomains": { "type": "array", "items": { "type": "string" } }
       },
       "additionalProperties": false

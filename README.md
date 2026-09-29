@@ -8,10 +8,11 @@ chrome-connector 让本机 agent 通过公开的 CLI、MCP 或 Unix socket 接�
 
 1. 按 [macOS 安装说明](docs/install-macos.md)构建、加载未打包扩展、注册宿主。
 2. 运行 `./bin/chrome-connector doctor`，确认配置文件在线。
-3. 运行 `./bin/chrome-connector call browser.list`，取得 `profileId`，再读取标签页。
+3. 运行 `./bin/chrome-connector browser list`，取得 `profileId`，再读取标签页。通用入口 `call METHOD [PARAMS_JSON]` 仍可直接调用 JSON-RPC 方法。
 4. 让其他 agent 使用仓库中的 [chrome-connector skill](skills/chrome-connector/SKILL.md)，或将安装后的 `current` 二进制配置成 stdio MCP 服务，参数为 `mcp`。
 
 公开方法、请求字段、占用权和错误语义见 [接口合同](docs/protocol.md)；机器可读的基础结构见 [JSON Schema](protocol/schema.json)。设计与首轮评审记录位于 [方案目录](docs/repeatedly-discussed-plans/active/2026-09-29-chrome-connector/)。
+当前组件与运行边界见 [实现架构](docs/architecture/current.md)。
 
 ## 开发验证
 

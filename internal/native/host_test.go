@@ -54,7 +54,7 @@ func TestNativeHostBridgesBrowserAndBroker(t *testing.T) {
 	hostDone := make(chan error, 1)
 	go func() { hostDone <- Run(ctx, browserReader, nativeWriter, path) }()
 
-	hello, _ := json.Marshal(map[string]any{"kind": "hello", "profileId": "profile-a", "protocolVersion": "1.0", "extensionVersion": "0.1.0", "supportedCdpDomains": []string{"Network"}})
+	hello, _ := json.Marshal(map[string]any{"kind": "hello", "profileId": "profile-a", "connectionId": "conn-a", "protocolVersion": "1.0", "extensionVersion": "0.1.0", "supportedCdpDomains": []string{"Network"}})
 	if err := protocol.WriteNativeFrame(browserWriter, hello, 64*1024*1024); err != nil {
 		t.Fatal(err)
 	}
@@ -74,6 +74,7 @@ func TestNativeHostBridgesBrowserAndBroker(t *testing.T) {
 	if registered["profileId"] != "profile-a" {
 		t.Fatalf("registration %+v", registered)
 	}
+	if registered["connectionId"] != "conn-a" { t.Fatalf("connection registration %+v", registered) }
 	if domains, ok := registered["supportedCdpDomains"].([]any); !ok || len(domains) != 1 || domains[0] != "Network" {
 		t.Fatalf("capability registration %+v", registered)
 	}

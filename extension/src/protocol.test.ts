@@ -8,7 +8,10 @@ test("hello names the profile and protocol version", () => {
   assert.equal(hello.profileId, "profile-1");
   assert.equal(hello.protocolVersion, "1.0");
   assert.equal(hello.extensionVersion, "0.1.0");
+  assert.equal((makeHello("profile-1", "0.1.0", "141.0.0.0") as Record<string, unknown>).browserVersion, "141.0.0.0");
   assert.ok((hello.supportedCdpDomains as string[]).includes("Network"));
+  assert.match(hello.connectionId as string, /^[0-9a-f-]{36}$/);
+  assert.notEqual(hello.connectionId, (makeHello("profile-1", "0.1.0") as Record<string, unknown>).connectionId);
 });
 
 test("request parser requires a JSON-RPC method and id", () => {

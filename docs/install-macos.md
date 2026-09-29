@@ -50,6 +50,8 @@ CLI 可直接调用公开方法：
 
 ## 更新与回滚
 
-更新代码后重新运行 `make test && make build`。扩展从仓库 `extension/dist` 加载，须在扩展管理页点击 **Reload** 才会应用新代码。再次运行 `install` 会创建内容哈希对应的二进制版本并切换 `current`；旧版本入口保存在 `previous`。若需回退宿主，运行 `./bin/chrome-connector rollback`，再重载扩展，使 Chrome 结束旧宿主并启动回退版本。扩展代码本身按仓库版本回退后重新构建、重载。
+更新代码后重新运行 `make test && make build`。再次运行 `install` 会停止旧 broker，创建内容哈希对应的二进制版本并切换 `current`，旧版本入口保存在 `previous`；随后启动新 broker 并请求已连接的扩展重载，使 Chrome 结束旧宿主并启动新宿主。`rollback` 同样切换回上一二进制并尝试自动重载。通过 `browser.list` 的 `connectionId` 变化和 `doctor` 验证接管。扩展代码本身按仓库版本回退后重新构建、重载。
+
+从没有 `extension.reload` 方法的早期开发版升级时，安装器会提示 `METHOD_NOT_FOUND` 和手动恢复步骤；此时文件已经切换成功，在 `chrome://extensions` 点击 Chrome Connector 的 **Reload** 即可，不需要重启 Chrome。若新旧协议主版本不兼容，`doctor` 会显示 `version_mismatch`，需将扩展更新到兼容版本后重载。
 
 `cdp.send` 默认关闭。若确需使用，在 `config.json` 中将 `rawCdp` 设为 `true` 并把需要的协议域加入 `cdpDomains`，然后让按需 broker 退出或重新启动以加载配置。完成调试后恢复关闭状态。连接器公开的是 Chrome 扩展支持的 CDP 子集，不是完整外部 CDP 端口。

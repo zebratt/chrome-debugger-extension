@@ -22,6 +22,8 @@ chrome-connector call tab.list '{"profileId":"<PROFILE_ID>"}'
 chrome-connector call tab.snapshot '{"profileId":"<PROFILE_ID>","tabId":123}'
 ```
 
+也可用 `chrome-connector browser list`、`chrome-connector tab snapshot 'PARAMS_JSON'` 等专用命令。截图要保存时使用 `chrome-connector tab screenshot 'PARAMS_JSON' --output /absolute/path.png`；文件以 `0600` 创建，不会覆盖已有文件，命令输出的 JSON 不再包含图像 Base64。
+
 支持 MCP 的 agent 将安装后的 `current` 可执行文件配置为 stdio MCP 服务，参数为 `mcp`；MCP 工具名与协议方法对应，例如 `browser_list`、`tab_snapshot`、`tab_click`。具体字段见[接口合同](../../docs/protocol.md)。
 
 ## 操作边界
@@ -31,4 +33,4 @@ chrome-connector call tab.snapshot '{"profileId":"<PROFILE_ID>","tabId":123}'
 - `tab.type` 是追加输入；`tab.scroll` 滚动顶层页面。`tab.key` 目前支持 Enter、Tab、Escape、Backspace 和方向键。
 - 当前 macOS 用户下的本地进程无需逐个授权，可能读取已登录网页。网页上的发布、上传、付款、权限变更等操作仍遵守发起任务的用户授权与 agent 自身规则；本连接器不授予额外操作许可。
 
-连接故障先运行 `doctor`。`BROWSER_OFFLINE` 检查扩展是否启用并重载；`TARGET_DETACHED` 或浏览器提示已有调试器时，检查同一标签页是否被 DevTools 或其他扩展占用。
+连接故障先运行 `doctor`。`BROWSER_OFFLINE` 检查扩展是否启用并重载；`VERSION_MISMATCH` 更新或重载扩展；`TARGET_DETACHED` 或浏览器提示已有调试器时，检查同一标签页是否被 DevTools 或其他扩展占用。

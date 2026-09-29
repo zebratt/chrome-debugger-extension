@@ -36,7 +36,7 @@ func TestBrokerRegistersHostAndForwardsTabList(t *testing.T) {
 	hostEncoder := json.NewEncoder(host)
 	hostDecoder := json.NewDecoder(host)
 	snapshotParams := make(chan map[string]any, 1)
-	if err := hostEncoder.Encode(map[string]any{"kind": "hello", "profileId": "profile-a", "protocolVersion": "1.0", "extensionVersion": "0.1.0"}); err != nil {
+	if err := hostEncoder.Encode(map[string]any{"kind": "hello", "profileId": "profile-a", "connectionId": "conn-a", "protocolVersion": "1.0", "extensionVersion": "0.1.0"}); err != nil {
 		t.Fatal(err)
 	}
 	go func() {
@@ -61,6 +61,8 @@ func TestBrokerRegistersHostAndForwardsTabList(t *testing.T) {
 			case "tab.snapshot":
 				snapshotParams <- request["params"].(map[string]any)
 				result = map[string]any{"snapshotId": "s", "nodes": []any{}}
+			case "extension.reload":
+				result = map[string]any{"reloading": true}
 			}
 			if hostEncoder.Encode(map[string]any{"jsonrpc": "2.0", "id": request["id"], "result": result}) != nil {
 				return
@@ -84,13 +86,14 @@ func TestBrokerRegistersHostAndForwardsTabList(t *testing.T) {
 			Profiles []struct {
 				ProfileID        string `json:"profileId"`
 				ExtensionVersion string `json:"extensionVersion"`
+				ConnectionID     string `json:"connectionId"`
 			} `json:"profiles"`
 		} `json:"result"`
 	}
 	if err := decoder.Decode(&browsers); err != nil {
 		t.Fatal(err)
 	}
-	if len(browsers.Result.Profiles) != 1 || browsers.Result.Profiles[0].ProfileID != "profile-a" || browsers.Result.Profiles[0].ExtensionVersion != "0.1.0" {
+	if len(browsers.Result.Profiles) != 1 || browsers.Result.Profiles[0].ProfileID != "profile-a" || browsers.Result.Profiles[0].ExtensionVersion != "0.1.0" || browsers.Result.Profiles[0].ConnectionID != "conn-a" {
 		t.Fatalf("browser list %+v", browsers)
 	}
 	if err := encoder.Encode(map[string]any{"jsonrpc": "2.0", "id": "b", "method": "tab.list", "params": map[string]any{"profileId": "profile-a"}}); err != nil {
@@ -177,6 +180,20 @@ func TestBrokerRegistersHostAndForwardsTabList(t *testing.T) {
 	}
 	if renewal.Error.Data.Kind != "LEASE_EXPIRED" {
 		t.Fatalf("detached target kept lease %+v", renewal)
+	}
+	if err := encoder.Encode(map[string]any{"jsonrpc": "2.0", "id": "reload", "method": "extension.reload", "params": map[string]any{"profileId": "profile-a"}}); err != nil {
+		t.Fatal(err)
+	}
+	var reloading struct {
+		Result struct {
+			Reloading bool `json:"reloading"`
+		} `json:"result"`
+	}
+	if err := decoder.Decode(&reloading); err != nil {
+		t.Fatal(err)
+	}
+	if !reloading.Result.Reloading {
+		t.Fatalf("extension reload %+v", reloading)
 	}
 }
 
@@ -418,5 +435,108 @@ func TestBrokerRoutesTwoProfilesIndependently(t *testing.T) {
 	}
 	if len(tabs.Result.Tabs) != 1 || tabs.Result.Tabs[0].Title != "profile-b" {
 		t.Fatalf("wrong profile route %+v", tabs)
+	}
+}
+
+func TestShutdownAcknowledgesBeforeBrokerStops(t *testing.T) {
+	directory, err := os.MkdirTemp("/tmp", "cc-stop-")
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { os.RemoveAll(directory) })
+	path := filepath.Join(directory, "broker.sock")
+	listener, err := net.Listen("unix", path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	server := NewServer(policy.Default(), time.Minute)
+	done := make(chan error, 1)
+	go func() { done <- server.Serve(ctx, listener) }()
+	client, err := net.Dial("unix", path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer client.Close()
+	client.SetDeadline(time.Now().Add(time.Second))
+	json.NewEncoder(client).Encode(map[string]any{"jsonrpc": "2.0", "id": "stop", "method": "system.shutdown"})
+	var response struct {
+		Result struct {
+			Stopping bool `json:"stopping"`
+		} `json:"result"`
+	}
+	if err := json.NewDecoder(client).Decode(&response); err != nil {
+		t.Fatal(err)
+	}
+	if !response.Result.Stopping {
+		t.Fatalf("shutdown response %+v", response)
+	}
+	select {
+	case err := <-done:
+		if err != nil {
+			t.Fatal(err)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("broker did not stop")
+	}
+}
+
+func TestIncompatibleExtensionHelloIsReportedAsVersionMismatch(t *testing.T) {
+	directory, err := os.MkdirTemp("/tmp", "cc-version-")
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { os.RemoveAll(directory) })
+	path := filepath.Join(directory, "broker.sock")
+	listener, err := net.Listen("unix", path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	go NewServer(policy.Default(), time.Second).Serve(ctx, listener)
+	host, err := net.Dial("unix", path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	json.NewEncoder(host).Encode(map[string]any{"kind": "hello", "profileId": "profile-a", "protocolVersion": "2.0", "extensionVersion": "2.0.0"})
+	host.Close()
+	client, err := net.Dial("unix", path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer client.Close()
+	client.SetDeadline(time.Now().Add(5 * time.Second))
+	encoder, decoder := json.NewEncoder(client), json.NewDecoder(client)
+	encoder.Encode(map[string]any{"jsonrpc": "2.0", "id": "list", "method": "browser.list"})
+	var listed struct {
+		Result struct {
+			DiscoveryState string `json:"discoveryState"`
+			Profiles       []struct {
+				Status          string `json:"status"`
+				ProtocolVersion string `json:"protocolVersion"`
+			} `json:"profiles"`
+		} `json:"result"`
+	}
+	if err := decoder.Decode(&listed); err != nil {
+		t.Fatal(err)
+	}
+	if listed.Result.DiscoveryState != "version_mismatch" || len(listed.Result.Profiles) != 1 || listed.Result.Profiles[0].Status != "version_mismatch" || listed.Result.Profiles[0].ProtocolVersion != "2.0" {
+		t.Fatalf("version listing %+v", listed)
+	}
+	encoder.Encode(map[string]any{"jsonrpc": "2.0", "id": "tabs", "method": "tab.list", "params": map[string]any{"profileId": "profile-a"}})
+	var tabs struct {
+		Error struct {
+			Data struct {
+				Kind string `json:"kind"`
+			} `json:"data"`
+		} `json:"error"`
+	}
+	if err := decoder.Decode(&tabs); err != nil {
+		t.Fatal(err)
+	}
+	if tabs.Error.Data.Kind != "VERSION_MISMATCH" {
+		t.Fatalf("version error %+v", tabs)
 	}
 }

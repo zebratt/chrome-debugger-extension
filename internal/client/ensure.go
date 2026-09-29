@@ -1,6 +1,7 @@
 package client
 
 import (
+	"errors"
 	"fmt"
 	"net"
 	"os"
@@ -8,6 +9,27 @@ import (
 
 	"golang.org/x/sys/unix"
 )
+
+func StopBroker(socket string, timeout time.Duration) error {
+	if !socketReady(socket) {
+		return nil
+	}
+	response, err := Call(socket, "system.shutdown", nil, timeout)
+	if err != nil {
+		return err
+	}
+	if response.Error != nil {
+		return fmt.Errorf("running broker cannot shut down (%s); wait for its idle timeout or stop it before upgrading", response.Error.Data.Kind)
+	}
+	deadline := time.Now().Add(timeout)
+	for time.Now().Before(deadline) {
+		if !socketReady(socket) {
+			return nil
+		}
+		time.Sleep(20 * time.Millisecond)
+	}
+	return errors.New("broker did not stop before timeout")
+}
 
 func EnsureBroker(socket, lock string, start func() error) error {
 	if socketReady(socket) {
