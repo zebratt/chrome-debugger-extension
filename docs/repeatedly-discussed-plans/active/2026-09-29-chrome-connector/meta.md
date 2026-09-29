@@ -44,6 +44,7 @@ review_profile:
 | `history/review_r1.md` | 第 1 轮独立子代理预审 |
 | `history/plan_v2.md` | 采纳首轮评审并记录用户交付选择后的方案 |
 | `history/plan_v3.md` | 最终确认后追加 ADR 关联的方案归档 |
+| `history/plan_v4.md` | 按本机安装与连接实测修正路径和回滚说明 |
 | `../../../decisions/0001-local-browser-agent-contract.md` | 公开接口与信任边界 ADR |
 | `tasks.md` | 用户选择 L2 编排后的完整范围实施清单 |
 | `history/spike_r1.md` | 运行中 Chrome 接入的本机验证与清理证据 |
@@ -77,6 +78,7 @@ review_profile:
 - 项目目录创建前为空，没有既有 ADR 或方案；已初始化独立 Git 仓库。
 - 正式项目扩展尚未安装；临时测试扩展验证了运行中注册宿主与重载恢复，正式 Go 宿主仍需在交付验收中复核。
 - 首项 spike 已完成：临时未打包扩展在运行中 Chrome 加载成功，用户级宿主清单注册后可握手，扩展重载后重新握手，Chrome PID 不变且无远程调试参数。测试扩展与宿主清单已清理。详情见 `history/spike_r1.md`。
+- 正式项目扩展从仓库 `extension/dist` 加载；Application Support 下的目录无法由本机 Chrome 文件选择器选中。Go 宿主位于 Application Support，CLI/MCP/页面操作的真实链路已验证；方案路径修订归档为 `history/plan_v4.md`。
 
 ## 决策备注
 

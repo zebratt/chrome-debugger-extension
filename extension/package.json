@@ -1,0 +1,15 @@
+{
+  "name": "chrome-connector-extension",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "build": "tsc && node scripts/copy-manifest.mjs",
+    "check": "tsc --noEmit",
+    "test": "node --test src/*.test.ts"
+  },
+  "devDependencies": {
+    "@types/chrome": "0.3.4",
+    "typescript": "7.0.2"
+  }
+}

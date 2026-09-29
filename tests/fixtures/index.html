@@ -1,0 +1,18 @@
+<!doctype html>
+<html lang="en">
+  <meta charset="utf-8">
+  <title>Chrome Connector Test Page</title>
+  <body>
+    <h1>Chrome Connector Test Page</h1>
+    <button id="counter" onclick="this.textContent = 'Clicked'">Click me</button>
+    <label>Name <input id="name" type="text"></label>
+    <p id="result">Ready</p>
+    <div style="height: 1600px" aria-hidden="true"></div>
+    <p>Bottom marker</p>
+    <script>
+      document.getElementById("name").addEventListener("input", (event) => {
+        document.getElementById("result").textContent = `Hello ${event.target.value}`;
+      });
+    </script>
+  </body>
+</html>
