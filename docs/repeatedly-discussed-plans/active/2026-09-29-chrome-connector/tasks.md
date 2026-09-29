@@ -6,8 +6,8 @@
 
 ## 1. 运行中接入可行性验证
 
-- [ ] 1.1 在隔离的临时测试扩展与宿主上验证：现有 Chrome 不重启时加载未打包扩展、注册 Native Messaging 清单并建立 `connectNative` 连接。记录 Chrome PID、启动参数和前后连接状态。（证据：`docs/repeatedly-discussed-plans/active/2026-09-29-chrome-connector/history/spike_r1.md`）
-- [ ] 1.2 验证扩展重载后宿主能重新连接，以及连接持续时 service worker 与宿主的实际生命周期。失败时记录反例并返回方案评审，不继续功能实现。
+- [x] 1.1 在隔离的临时测试扩展与宿主上验证：现有 Chrome 不重启时加载未打包扩展、注册 Native Messaging 清单并建立 `connectNative` 连接。记录 Chrome PID、启动参数和前后连接状态。（证据：`docs/repeatedly-discussed-plans/active/2026-09-29-chrome-connector/history/spike_r1.md`）
+- [x] 1.2 验证扩展重载后宿主能重新连接，以及连接持续时 service worker 与宿主的实际生命周期。失败时记录反例并返回方案评审，不继续功能实现。
 
 ## 2. 项目基础与公开合同
 

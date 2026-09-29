@@ -25,7 +25,7 @@ review_profile:
 ## 流程状态
 
 - [x] 前提确认
-- [ ] 关键前提验证（运行中注册宿主的本机验证待实施首项完成）
+- [x] 关键前提验证（运行中加载扩展、注册宿主并重载恢复）
 - [x] 方案方向选定
 - [x] 初版方案生成（plan_v1）
 - [x] 第 1 轮评审（review_r1）
@@ -46,6 +46,7 @@ review_profile:
 | `history/plan_v3.md` | 最终确认后追加 ADR 关联的方案归档 |
 | `../../../decisions/0001-local-browser-agent-contract.md` | 公开接口与信任边界 ADR |
 | `tasks.md` | 用户选择 L2 编排后的完整范围实施清单 |
+| `history/spike_r1.md` | 运行中 Chrome 接入的本机验证与清理证据 |
 
 ## 需求摘要
 
@@ -74,7 +75,8 @@ review_profile:
 - Chrome 官方 Native Messaging 文档规定宿主通过标准输入输出与获准扩展通信，`allowed_origins` 为扩展 ID 列表，不支持通配。
 - Chrome 官方文档说明 `connectNative` 可维持扩展 service worker 生命周期，且 `chrome.debugger` 可用的 CDP 协议域受限制。
 - 项目目录创建前为空，没有既有 ADR 或方案；已初始化独立 Git 仓库。
-- 尚未在现有 Chrome 上安装本项目扩展；运行中注册宿主、扩展重载与无需重启的验收仍待本机 spike，方案要求失败时回到评审。
+- 正式项目扩展尚未安装；临时测试扩展验证了运行中注册宿主与重载恢复，正式 Go 宿主仍需在交付验收中复核。
+- 首项 spike 已完成：临时未打包扩展在运行中 Chrome 加载成功，用户级宿主清单注册后可握手，扩展重载后重新握手，Chrome PID 不变且无远程调试参数。测试扩展与宿主清单已清理。详情见 `history/spike_r1.md`。
 
 ## 决策备注
 
