@@ -1,0 +1,17 @@
+<!doctype html><html lang="en"><meta charset="utf-8"><title>Sequential Hotel Search</title>
+<style>body{font:17px system-ui;max-width:800px;margin:32px auto;color:#17223c;background:#f5f7fc}section,form{background:white;padding:20px;border:1px solid #dce1ee;border-radius:12px;margin:16px 0}label{display:block;margin:15px 0}input[type=text],select{font:inherit;display:block;padding:8px;width:90%;margin-top:7px}button{padding:10px 18px}#results{min-height:55px}small{color:#606b80}</style>
+<h1>Sequential Hotel Search</h1><small>Synthetic test data. No bookings or payments.</small>
+<form id="form" role="search" aria-label="Hotel search">
+<label>City<input type="text" id="city" aria-label="City" autocomplete="off"></label>
+<label>Style<select id="style" aria-label="Style"><option value="any">Any style</option><option value="design">Design</option><option value="classic">Classic</option></select></label>
+<label><input type="checkbox" id="free" aria-label="Free cancellation">Free cancellation</label>
+<button type="submit">Search hotels</button>
+</form>
+<section id="results" role="status">Set the city, style and cancellation preference, then search.</section>
+<script>
+const params=new URLSearchParams(location.search);
+document.getElementById('form').addEventListener('submit',event=>{
+ event.preventDefault();const result=document.getElementById('results');result.textContent='Loading hotel results…';
+ setTimeout(()=>{const q=new URLSearchParams({city:document.getElementById('city').value,style:document.getElementById('style').value,free:document.getElementById('free').checked?'1':'0'});result.replaceChildren();const p=document.createElement('p');p.textContent='Matching hotel: Casa Flora';const a=document.createElement('a');a.textContent='Open Casa Flora';a.href='sequence-result.html?'+q;if(params.get('newtab')==='1'){a.target='_blank';a.rel='opener'}result.append(p,a)},260);
+});
+</script></html>

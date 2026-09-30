@@ -30,3 +30,13 @@ agent CLI / MCP / JSON-RPC socket 客户端
 - MCP 与 CLI 复用同一个 broker RPC 合同。MCP 截图结果是 `image/png`；CLI 可用 `--output` 将图片写到不覆盖已有文件的私有路径。
 
 接口字段和错误语义见 [协议](../protocol.md)，本机安装与回滚见 [安装说明](../install-macos.md)。
+
+## 本地工作流执行层（0.4.0）
+
+CLI/MCP 在客户端拦截 browser.run；internal/automation 将调用者提供的动作清单或固定工作流组织为基础 RPC。broker 与 Native Messaging 只处理低级接口。工作流不依赖外部模型服务。
+
+sequence 按调用者明确的顺序执行 click/type/select/key/scroll/wait/assert，目标按当前快照的名称、角色、href 唯一匹配。只有明确未执行的 stale 动作才重新定位；执行成功先记录进度，再观察页面。未知结果和未验证输入回交调用者。completedActions/nextAction 保留已完成前缀。
+
+扩展 detailed 快照提供文档身份、当前视口文字、控件状态与下拉选项。guards.ts 保留文档/语义/几何守卫；短时焦点模拟在调试连接结束时恢复。显式 StaticText 目标可用于非标准点击。动作授权由调用者负责，执行器不根据按钮文字猜测用户权限。
+
+新子标签页仍按 opener、allowedOrigins、followNewTabs 和独立租约接管。最终显式检查同时核对 URL、当前视口文字和字段值；没有最终条件只报告清单执行完成。

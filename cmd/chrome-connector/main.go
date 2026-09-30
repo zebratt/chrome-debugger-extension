@@ -30,8 +30,8 @@ func main() { os.Exit(run(normalizeArgs(os.Args[1:]), os.Stdout, os.Stderr)) }
 
 var convenienceMethods = map[string]map[string]bool{
 	"system":  {"ping": true, "policy": true, "capabilities": true},
-	"browser": {"list": true},
-	"tab":     {"list": true, "open": true, "info": true, "navigate": true, "snapshot": true, "screenshot": true, "claim": true, "renew": true, "release": true, "click": true, "type": true, "key": true, "scroll": true, "wait": true},
+	"browser": {"list": true, "run": true},
+	"tab":     {"list": true, "open": true, "info": true, "navigate": true, "snapshot": true, "screenshot": true, "claim": true, "renew": true, "release": true, "click": true, "select": true, "type": true, "key": true, "scroll": true, "wait": true},
 	"cdp":     {"send": true},
 }
 
@@ -118,7 +118,7 @@ func run(args []string, stdout, stderr io.Writer) int {
 			fmt.Fprintln(stderr, err)
 			return 1
 		}
-		response, err := client.Call(paths.BrokerSocket, args[1], params, 20*time.Second)
+		response, err := callWithWorkflow(context.Background(), paths.BrokerSocket, args[1], params)
 		if err != nil {
 			fmt.Fprintln(stderr, err)
 			return 1
@@ -135,7 +135,7 @@ func run(args []string, stdout, stderr io.Writer) int {
 			return 1
 		}
 		fmt.Fprintln(stdout, string(encoded))
-		if response.Error != nil {
+		if response.Error != nil || args[1] == "browser.run" && workflowNeedsAttention(response) {
 			return 1
 		}
 		return 0
@@ -144,7 +144,7 @@ func run(args []string, stdout, stderr io.Writer) int {
 			if err := ensureBroker(paths); err != nil {
 				return protocol.Response{}, err
 			}
-			return client.Call(paths.BrokerSocket, method, params, 20*time.Second)
+			return callWithWorkflow(context.Background(), paths.BrokerSocket, method, params)
 		}); err != nil {
 			fmt.Fprintln(stderr, err)
 			return 1

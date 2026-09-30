@@ -49,7 +49,7 @@ func Call(socket, method string, params any, timeout time.Duration) (protocol.Re
 
 func isAction(method string) bool {
 	switch method {
-	case "tab.open", "tab.navigate", "tab.click", "tab.type", "tab.key", "tab.scroll", "cdp.send", "extension.reload":
+	case "tab.open", "tab.navigate", "tab.click", "tab.select", "tab.type", "tab.key", "tab.scroll", "cdp.send", "extension.reload":
 		return true
 	default:
 		return false

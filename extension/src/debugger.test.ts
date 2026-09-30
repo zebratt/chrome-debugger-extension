@@ -146,3 +146,51 @@ test("two readers of one tab are serialized instead of fighting for debugger att
     (globalThis as unknown as { chrome: unknown }).chrome = original;
   }
 });
+
+test("agent focus emulation is restored on success, failure and timeout", async () => {
+  const original = globalThis.chrome;
+  try {
+    for (const outcome of ["success", "failure", "timeout"]) {
+      const calls: string[] = [];
+      (globalThis as unknown as { chrome: unknown }).chrome = {
+        debugger: {
+          attach: async () => { calls.push("attach"); },
+          sendCommand: async (_target: unknown, method: string, params: Record<string, unknown>) => {
+            calls.push(method === "Emulation.setFocusEmulationEnabled" ? `focus:${params.enabled}` : method);
+            return {};
+          },
+          detach: async () => { calls.push("detach"); },
+        },
+      };
+      const task = withDebugger(7, async (send) => {
+        await send("DOM.focus", { backendNodeId: 1 });
+        if (outcome === "failure") throw new Error("action failed");
+        if (outcome === "timeout") await new Promise(() => {});
+      }, 30, true);
+      if (outcome === "success") await task;
+      else await assert.rejects(task, outcome === "failure" ? /action failed/ : /OUTCOME_UNKNOWN/);
+      assert.deepEqual(calls, ["attach", "focus:true", "DOM.focus", "focus:false", "detach"]);
+    }
+  } finally {
+    (globalThis as unknown as { chrome: unknown }).chrome = original;
+  }
+});
+
+test("a timed-out action cannot send another command after its attachment ends", async () => {
+  const original = globalThis.chrome;
+  let lateSend: ((method: string, params: Record<string, unknown>) => Promise<unknown>) | undefined;
+  let sent = false;
+  (globalThis as unknown as { chrome: unknown }).chrome = {
+    debugger: { attach: async () => {}, detach: async () => {}, sendCommand: async () => { sent = true; } },
+  };
+  try {
+    await assert.rejects(withDebugger(7, async (send) => {
+      lateSend = send;
+      await new Promise(() => {});
+    }, 20), /OUTCOME_UNKNOWN/);
+    await assert.rejects(lateSend!("Input.insertText", { text: "must not run" }), /session has ended/);
+    assert.equal(sent, false);
+  } finally {
+    (globalThis as unknown as { chrome: unknown }).chrome = original;
+  }
+});

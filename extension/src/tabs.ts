@@ -12,7 +12,7 @@ export async function listTabs() {
   return {
     tabs: tabs
       .filter((tab) => tab.id !== undefined && tab.url !== undefined && !tab.incognito && isWebURL(tab.url))
-      .map((tab) => ({ tabId: tab.id as number, title: tab.title || "", url: tab.url as string })),
+      .map((tab) => ({ tabId: tab.id as number, title: tab.title || "", url: tab.url as string, ...(tab.openerTabId === undefined ? {} : {openerTabId: tab.openerTabId}) })),
   };
 }
 

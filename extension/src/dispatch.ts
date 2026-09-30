@@ -1,6 +1,6 @@
 import { errorResponse, parseRequest } from "./protocol.ts";
 import { getTabInfo, listTabs, navigateTab, openTab } from "./tabs.ts";
-import { clickNode, pressKey, screenshotPage, scrollPage, snapshotPage, typeIntoNode, waitForText } from "./page.ts";
+import { clickNode, selectNode, pressKey, screenshotPage, scrollPage, snapshotPage, typeIntoNode, waitForText } from "./page.ts";
 import { sendCDPCommand } from "./debugger.ts";
 
 export async function handleMessage(value: unknown) {
@@ -13,7 +13,7 @@ export async function handleMessage(value: unknown) {
         throw new Error("INVALID_PARAMS: expectedUrl requires tabId");
       }
       const current = await getTabInfo(params.tabId);
-      if (current.url !== params.expectedUrl) throw new Error("POLICY_DENIED: tab URL changed after broker check");
+      if (current.url !== params.expectedUrl) throw new Error("STALE_SNAPSHOT: tab URL changed before command execution");
     }
     let result: unknown;
     switch (request.method) {
@@ -39,32 +39,44 @@ export async function handleMessage(value: unknown) {
         break;
       case "tab.snapshot":
         if (typeof params.tabId !== "number") throw new Error("INVALID_PARAMS: tabId is required");
-        result = await snapshotPage(params.tabId);
+        if (params.compact !== undefined && typeof params.compact !== "boolean") throw new Error("INVALID_PARAMS: compact must be boolean");
+        if(params.detailed!==undefined&&typeof params.detailed!=="boolean")throw new Error("INVALID_PARAMS: detailed must be boolean");
+        result = await snapshotPage(params.tabId, params.compact === true, params.detailed===true);
         break;
       case "tab.click":
         if (typeof params.tabId !== "number" || typeof params.snapshotId !== "string" || typeof params.nodeRef !== "string") {
           throw new Error("INVALID_PARAMS: tabId, snapshotId and nodeRef are required");
         }
-        await clickNode(params.tabId, params.snapshotId, params.nodeRef);
+        if(params.guarded!==undefined&&typeof params.guarded!=="boolean")throw new Error("INVALID_PARAMS: guarded must be boolean");
+        await clickNode(params.tabId, params.snapshotId, params.nodeRef, params.guarded===true);
         result = { clicked: true };
         break;
       case "tab.type":
         if (typeof params.tabId !== "number" || typeof params.snapshotId !== "string" || typeof params.nodeRef !== "string" || typeof params.text !== "string") {
           throw new Error("INVALID_PARAMS: tabId, snapshotId, nodeRef and text are required");
         }
-        await typeIntoNode(params.tabId, params.snapshotId, params.nodeRef, params.text);
-        result = { typed: true };
+        if(params.guarded!==undefined&&typeof params.guarded!=="boolean")throw new Error("INVALID_PARAMS: guarded must be boolean");
+        if (params.replace !== undefined && typeof params.replace !== "boolean") throw new Error("INVALID_PARAMS: replace must be boolean");
+        result = { typed: true, ...await typeIntoNode(params.tabId, params.snapshotId, params.nodeRef, params.text, params.replace === true, params.guarded===true) };
+        break;
+      case "tab.select":
+        if(typeof params.tabId!=="number"||typeof params.snapshotId!=="string"||typeof params.nodeRef!=="string"||!Number.isInteger(params.optionIndex))throw new Error("INVALID_PARAMS: select requires snapshot, node and option index");
+        result=await selectNode(params.tabId,params.snapshotId,params.nodeRef,params.optionIndex as number);
         break;
       case "tab.key":
         if (typeof params.tabId !== "number" || typeof params.key !== "string") throw new Error("INVALID_PARAMS: tabId and key are required");
-        await pressKey(params.tabId, params.key);
+        if (params.guarded !== undefined && typeof params.guarded !== "boolean") throw new Error("INVALID_PARAMS: guarded must be boolean");
+        if (params.guarded === true && (typeof params.snapshotId !== "string" || typeof params.nodeRef !== "string")) throw new Error("INVALID_PARAMS: guarded key requires snapshotId and nodeRef");
+        if ((params.snapshotId !== undefined || params.nodeRef !== undefined) && (typeof params.snapshotId !== "string" || typeof params.nodeRef !== "string")) throw new Error("INVALID_PARAMS: targeted key requires snapshotId and nodeRef");
+        await pressKey(params.tabId, params.key, typeof params.snapshotId === "string" ? params.snapshotId : undefined, typeof params.nodeRef === "string" ? params.nodeRef : undefined, params.guarded===true);
         result = { pressed: true };
         break;
       case "tab.scroll":
         if (typeof params.tabId !== "number" || typeof params.deltaY !== "number" || !Number.isFinite(params.deltaY)) {
           throw new Error("INVALID_PARAMS: tabId and deltaY are required");
         }
-        await scrollPage(params.tabId, params.deltaY);
+        if(params.snapshotId!==undefined&&typeof params.snapshotId!=="string")throw new Error("INVALID_PARAMS: snapshotId must be string");
+        await scrollPage(params.tabId, params.deltaY, typeof params.snapshotId==="string"?params.snapshotId:undefined);
         result = { scrolled: true };
         break;
       case "tab.wait":

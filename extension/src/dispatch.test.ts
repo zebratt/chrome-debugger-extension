@@ -23,6 +23,13 @@ test("dispatcher reports malformed and unknown methods", async () => {
   assert.equal(unknown.error?.data.kind, "METHOD_NOT_FOUND");
 });
 
+test("guarded keys cannot silently fall back to the current focus", async () => {
+  for (const params of [{ tabId: 7, key: "Enter", guarded: true }, { tabId: 7, key: "Enter", guarded: "true" }]) {
+    const response = await handleMessage({ jsonrpc: "2.0", id: "key", method: "tab.key", params });
+    assert.equal(response.error?.data.kind, "INVALID_PARAMS");
+  }
+});
+
 test("dispatcher checks the live URL of a target tab", async () => {
   const original = globalThis.chrome;
   (globalThis as unknown as { chrome: unknown }).chrome = {
@@ -85,7 +92,7 @@ test("page request rejects a tab that changed URL after broker validation", asyn
   };
   try {
     const response = await handleMessage({ jsonrpc: "2.0", id: "changed", method: "tab.screenshot", params: { tabId: 7, expectedUrl: "https://allowed.example.com" } });
-    assert.equal(response.error?.data.kind, "POLICY_DENIED");
+    assert.equal(response.error?.data.kind, "STALE_SNAPSHOT");
     assert.equal(attached, false);
   } finally {
     (globalThis as unknown as { chrome: unknown }).chrome = original;

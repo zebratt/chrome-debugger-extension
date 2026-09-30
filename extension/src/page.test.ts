@@ -122,6 +122,7 @@ test("keyboard and page scroll use bounded commands", async () => {
     await scrollPage(7, 200);
     assert.deepEqual(inputs.slice(0, 2).map((item) => item.params.type), ["keyDown", "keyUp"]);
     assert.equal(inputs[0].params.key, "Enter");
+    assert.equal(inputs[0].params.text, "\r");
     assert.equal(inputs[2].method, "Runtime.evaluate");
     assert.equal(inputs[2].params.expression, "window.scrollBy(0, 200)");
   } finally {

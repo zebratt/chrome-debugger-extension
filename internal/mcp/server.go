@@ -5,7 +5,9 @@ import (
 	"fmt"
 	"io"
 
+	"chrome-connector/internal/automation"
 	"chrome-connector/internal/protocol"
+	"chrome-connector/internal/version"
 )
 
 const Version = "2025-06-18"
@@ -26,10 +28,13 @@ func tools() []tool {
 			"text": map[string]any{"type": "string"}, "key": map[string]any{"type": "string"},
 			"deltaY": map[string]any{"type": "number"}, "timeoutMs": map[string]any{"type": "integer"},
 			"method": map[string]any{"type": "string"}, "commandParams": map[string]any{"type": "object"},
+			"guarded": map[string]any{"type": "boolean"}, "detailed": map[string]any{"type": "boolean"}, "optionIndex": map[string]any{"type": "integer", "minimum": 0},
+			"replace": map[string]any{"type": "boolean"}, "compact": map[string]any{"type": "boolean"},
 		}, "required": required, "additionalProperties": false}
 	}
 	return []tool{
 		{"browser_list", "List connected Chrome profiles", object(nil), "browser.list"},
+		{"browser_run", "Run exact-label search/navigation/fill or an explicit sequence of caller-authorized browser actions. Runs locally with no model calls. Reobserves targets, recovers pre-action stale state and verifies result conditions. Inspect completedActions, nextAction and steps before resuming; never replay unknown actions.", automation.InputSchema(), "browser.run"},
 		{"tab_list", "List eligible tabs in a profile", object([]string{"profileId"}), "tab.list"},
 		{"tab_open", "Open a web page and claim its tab", object([]string{"profileId", "url"}), "tab.open"},
 		{"tab_info", "Inspect an eligible tab", object([]string{"profileId", "tabId"}), "tab.info"},
@@ -40,6 +45,7 @@ func tools() []tool {
 		{"tab_release", "Release a tab claim", object([]string{"profileId", "tabId", "leaseToken"}), "tab.release"},
 		{"tab_navigate", "Navigate a claimed tab", object([]string{"profileId", "tabId", "url", "leaseToken"}), "tab.navigate"},
 		{"tab_click", "Click a node from a snapshot", object([]string{"profileId", "tabId", "leaseToken", "snapshotId", "nodeRef"}), "tab.click"},
+		{"tab_select", "Select an observed native dropdown option with target guards", object([]string{"profileId", "tabId", "leaseToken", "snapshotId", "nodeRef", "optionIndex"}), "tab.select"},
 		{"tab_type", "Type into a node from a snapshot", object([]string{"profileId", "tabId", "leaseToken", "snapshotId", "nodeRef", "text"}), "tab.type"},
 		{"tab_key", "Press a supported key", object([]string{"profileId", "tabId", "leaseToken", "key"}), "tab.key"},
 		{"tab_scroll", "Scroll a claimed tab", object([]string{"profileId", "tabId", "leaseToken", "deltaY"}), "tab.scroll"},
@@ -73,7 +79,7 @@ func Run(input io.Reader, output io.Writer, call func(method string, params any)
 		var rpcError any
 		switch message.Method {
 		case "initialize":
-			result = map[string]any{"protocolVersion": Version, "capabilities": map[string]any{"tools": map[string]any{}}, "serverInfo": map[string]any{"name": "chrome-connector", "version": "0.1.0"}}
+			result = map[string]any{"protocolVersion": Version, "capabilities": map[string]any{"tools": map[string]any{}}, "serverInfo": map[string]any{"name": "chrome-connector", "version": version.Component}}
 		case "ping":
 			result = map[string]any{}
 		case "tools/list":

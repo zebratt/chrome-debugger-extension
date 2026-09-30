@@ -2,62 +2,143 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "title": "Chrome Connector JSON-RPC 1.0",
   "oneOf": [
-    { "$ref": "#/$defs/request" },
-    { "$ref": "#/$defs/response" },
-    { "$ref": "#/$defs/hello" }
+    {
+      "$ref": "#/$defs/request"
+    },
+    {
+      "$ref": "#/$defs/response"
+    },
+    {
+      "$ref": "#/$defs/hello"
+    },
+    {
+      "$ref": "#/$defs/clientWorkflowRequest"
+    }
   ],
   "$defs": {
     "id": {
       "oneOf": [
-        { "type": "string", "minLength": 1 },
-        { "type": "integer" }
+        {
+          "type": "string",
+          "minLength": 1
+        },
+        {
+          "type": "integer"
+        }
       ]
     },
     "request": {
       "type": "object",
-      "required": ["jsonrpc", "id", "method"],
+      "required": [
+        "jsonrpc",
+        "id",
+        "method"
+      ],
       "properties": {
-        "jsonrpc": { "const": "2.0" },
-        "id": { "$ref": "#/$defs/id" },
+        "jsonrpc": {
+          "const": "2.0"
+        },
+        "id": {
+          "$ref": "#/$defs/id"
+        },
         "method": {
           "enum": [
-            "system.ping", "system.policy", "system.capabilities", "system.shutdown", "browser.list", "extension.reload",
-            "tab.list", "tab.open", "tab.info", "tab.navigate", "tab.snapshot",
-            "tab.screenshot", "tab.claim", "tab.renew", "tab.release",
-            "tab.click", "tab.type", "tab.key", "tab.scroll", "tab.wait", "cdp.send"
+            "system.ping",
+            "system.policy",
+            "system.capabilities",
+            "system.shutdown",
+            "browser.list",
+            "extension.reload",
+            "tab.list",
+            "tab.open",
+            "tab.info",
+            "tab.navigate",
+            "tab.snapshot",
+            "tab.screenshot",
+            "tab.claim",
+            "tab.renew",
+            "tab.release",
+            "tab.click",
+            "tab.type",
+            "tab.key",
+            "tab.scroll",
+            "tab.wait",
+            "cdp.send",
+            "tab.select"
           ]
         },
-        "params": { "type": "object" }
+        "params": {
+          "type": "object"
+        }
       },
       "additionalProperties": false
     },
     "response": {
       "type": "object",
-      "required": ["jsonrpc", "id"],
+      "required": [
+        "jsonrpc",
+        "id"
+      ],
       "properties": {
-        "jsonrpc": { "const": "2.0" },
-        "id": { "oneOf": [{ "$ref": "#/$defs/id" }, { "type": "null" }] },
+        "jsonrpc": {
+          "const": "2.0"
+        },
+        "id": {
+          "oneOf": [
+            {
+              "$ref": "#/$defs/id"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
         "result": {},
-        "error": { "$ref": "#/$defs/error" }
+        "error": {
+          "$ref": "#/$defs/error"
+        }
       },
       "oneOf": [
-        { "required": ["result"] },
-        { "required": ["error"] }
+        {
+          "required": [
+            "result"
+          ]
+        },
+        {
+          "required": [
+            "error"
+          ]
+        }
       ],
       "additionalProperties": false
     },
     "error": {
       "type": "object",
-      "required": ["code", "message", "data"],
+      "required": [
+        "code",
+        "message",
+        "data"
+      ],
       "properties": {
-        "code": { "type": "integer" },
-        "message": { "type": "string" },
+        "code": {
+          "type": "integer"
+        },
+        "message": {
+          "type": "string"
+        },
         "data": {
           "type": "object",
-          "required": ["kind", "retryable"],
+          "required": [
+            "kind",
+            "retryable"
+          ],
           "properties": {
-            "kind": { "type": "string" },
-            "retryable": { "type": "boolean" }
+            "kind": {
+              "type": "string"
+            },
+            "retryable": {
+              "type": "boolean"
+            }
           },
           "additionalProperties": false
         }
@@ -66,16 +147,285 @@
     },
     "hello": {
       "type": "object",
-      "required": ["kind", "profileId", "protocolVersion"],
+      "required": [
+        "kind",
+        "profileId",
+        "protocolVersion"
+      ],
       "properties": {
-        "kind": { "const": "hello" },
-        "profileId": { "type": "string", "minLength": 1 },
-        "connectionId": { "type": "string" },
-        "protocolVersion": { "type": "string" },
-        "extensionVersion": { "type": "string" },
-        "hostVersion": { "type": "string" },
-        "browserVersion": { "type": "string" },
-        "supportedCdpDomains": { "type": "array", "items": { "type": "string" } }
+        "kind": {
+          "const": "hello"
+        },
+        "profileId": {
+          "type": "string",
+          "minLength": 1
+        },
+        "connectionId": {
+          "type": "string"
+        },
+        "protocolVersion": {
+          "type": "string"
+        },
+        "extensionVersion": {
+          "type": "string"
+        },
+        "hostVersion": {
+          "type": "string"
+        },
+        "browserVersion": {
+          "type": "string"
+        },
+        "supportedCdpDomains": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    "browserRunParams": {
+      "additionalProperties": false,
+      "properties": {
+        "actions": {
+          "description": "Explicit ordered actions planned and authorized by the caller. Each target must uniquely match the current observation.",
+          "items": {
+            "additionalProperties": false,
+            "properties": {
+              "deltaY": {
+                "maximum": 100000,
+                "minimum": -100000,
+                "type": "number"
+              },
+              "expectText": {
+                "maxLength": 1024,
+                "type": "string"
+              },
+              "expectURL": {
+                "maxLength": 4096,
+                "type": "string"
+              },
+              "href": {
+                "maxLength": 4096,
+                "type": "string"
+              },
+              "key": {
+                "enum": [
+                  "Enter",
+                  "Tab",
+                  "Escape",
+                  "Backspace",
+                  "ArrowUp",
+                  "ArrowDown",
+                  "ArrowLeft",
+                  "ArrowRight"
+                ],
+                "type": "string"
+              },
+              "option": {
+                "maxLength": 4096,
+                "type": "string"
+              },
+              "role": {
+                "maxLength": 64,
+                "type": "string"
+              },
+              "target": {
+                "maxLength": 512,
+                "type": "string"
+              },
+              "text": {
+                "maxLength": 4096,
+                "type": "string"
+              },
+              "timeoutMs": {
+                "maximum": 10000,
+                "minimum": 0,
+                "type": "integer"
+              },
+              "type": {
+                "enum": [
+                  "click",
+                  "type",
+                  "select",
+                  "key",
+                  "scroll",
+                  "wait",
+                  "assert"
+                ],
+                "type": "string"
+              },
+              "verifyFields": {
+                "items": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "target": {
+                      "maxLength": 512,
+                      "type": "string"
+                    },
+                    "text": {
+                      "maxLength": 4096,
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "target",
+                    "text"
+                  ],
+                  "type": "object"
+                },
+                "maxItems": 10,
+                "type": "array"
+              }
+            },
+            "required": [
+              "type"
+            ],
+            "type": "object"
+          },
+          "maxItems": 60,
+          "minItems": 1,
+          "type": "array"
+        },
+        "allowedOrigins": {
+          "description": "Sequence only: additional exact origins authorized by the caller.",
+          "items": {
+            "maxLength": 4096,
+            "type": "string"
+          },
+          "maxItems": 8,
+          "type": "array"
+        },
+        "emptyText": {
+          "maxLength": 1024,
+          "type": "string"
+        },
+        "expectText": {
+          "maxLength": 1024,
+          "type": "string"
+        },
+        "expectURL": {
+          "maxLength": 4096,
+          "type": "string"
+        },
+        "fields": {
+          "items": {
+            "additionalProperties": false,
+            "properties": {
+              "target": {
+                "maxLength": 512,
+                "type": "string"
+              },
+              "text": {
+                "maxLength": 4096,
+                "type": "string"
+              }
+            },
+            "required": [
+              "target",
+              "text"
+            ],
+            "type": "object"
+          },
+          "maxItems": 10,
+          "minItems": 1,
+          "type": "array"
+        },
+        "followNewTabs": {
+          "default": false,
+          "type": "boolean"
+        },
+        "leaseToken": {
+          "description": "Optional caller-owned claim; renewed but not released by the workflow.",
+          "type": "string"
+        },
+        "pressEnter": {
+          "default": false,
+          "type": "boolean"
+        },
+        "profileId": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "tabId": {
+          "minimum": 1,
+          "type": "integer"
+        },
+        "target": {
+          "maxLength": 512,
+          "type": "string"
+        },
+        "text": {
+          "maxLength": 4096,
+          "type": "string"
+        },
+        "timeoutMs": {
+          "description": "Defaults to 60000 for sequence, 15000 otherwise.",
+          "maximum": 60000,
+          "minimum": 100,
+          "type": "integer"
+        },
+        "verifyFields": {
+          "items": {
+            "additionalProperties": false,
+            "properties": {
+              "target": {
+                "maxLength": 512,
+                "type": "string"
+              },
+              "text": {
+                "maxLength": 4096,
+                "type": "string"
+              }
+            },
+            "required": [
+              "target",
+              "text"
+            ],
+            "type": "object"
+          },
+          "maxItems": 10,
+          "type": "array"
+        },
+        "workflow": {
+          "enum": [
+            "search",
+            "navigate",
+            "fill",
+            "sequence"
+          ],
+          "type": "string"
+        }
+      },
+      "required": [
+        "profileId",
+        "tabId",
+        "workflow"
+      ],
+      "type": "object"
+    },
+    "clientWorkflowRequest": {
+      "$comment": "CLI/MCP client composition only; this is not a broker socket method.",
+      "type": "object",
+      "required": [
+        "jsonrpc",
+        "id",
+        "method",
+        "params"
+      ],
+      "properties": {
+        "jsonrpc": {
+          "const": "2.0"
+        },
+        "id": {
+          "$ref": "#/$defs/id"
+        },
+        "method": {
+          "const": "browser.run"
+        },
+        "params": {
+          "$ref": "#/$defs/browserRunParams"
+        }
       },
       "additionalProperties": false
     }

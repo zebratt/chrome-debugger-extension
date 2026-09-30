@@ -24,3 +24,9 @@ make build
 ```
 
 浏览器交互验收使用 `tests/fixtures/index.html` 的本地页面。项目不依赖 ChatGPT 扩展的代码、私有协议或服务。
+
+## 连续浏览器操作（0.4.0）
+
+`browser.run` / MCP `browser_run` 支持明确的 `sequence` 步骤清单，以及确定性的 search / navigate / fill。执行器在本地连续执行，每步重新观察目标，保留失效恢复、结果验证与新标签页接管，无需模型服务或 API 密钥。
+
+见 [使用说明](docs/browser-workflows.md)。测试入口为 `tests/sequence_workflows.py`。

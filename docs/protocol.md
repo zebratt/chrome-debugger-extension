@@ -28,6 +28,7 @@ Chrome Connector 在 macOS 当前用户的私有 Unix socket 上提供 JSON-RPC 
 | `tab.renew` / `tab.release` | `profileId`, `tabId`, `leaseToken` | 续租 / 释放结果 |
 | `tab.click` | `profileId`, `tabId`, `leaseToken`, `snapshotId`, `nodeRef` | 点击结果 |
 | `tab.type` | 上述字段及 `text` | 在节点中追加输入文本 |
+| `tab.select` | `profileId`, `tabId`, `leaseToken`, `snapshotId`, `nodeRef`, `optionIndex` | 设置 agent 快照中观察到的原生下拉选项；返回 `verified` |
 | `tab.key` | `profileId`, `tabId`, `leaseToken`, `key` | 按键结果；支持 Enter、Tab、Escape、Backspace 和方向键 |
 | `tab.scroll` | `profileId`, `tabId`, `leaseToken`, `deltaY` | 滚动顶层页面；嵌套滚动容器未覆盖 |
 | `tab.wait` | `profileId`, `tabId`, `text`, 可选 `timeoutMs` | 文本出现后返回 `found: true`；最长 10 秒 |
@@ -51,3 +52,13 @@ Chrome Connector 在 macOS 当前用户的私有 Unix socket 上提供 JSON-RPC 
 - `TARGET_DETACHED` / `CHROME_ERROR`：Chrome 调试目标断开或浏览器 API 出错；查看是否有 DevTools 或其他扩展占用同一标签页。
 
 本机同一用户下的进程无需逐个授权。`cdp.send` 默认关闭，策略文件位于当前用户的 `~/Library/Application Support/chrome-connector/config.json`，权限必须为 `0600`。允许的站点默认为普通 `http`/`https` 页面；`chrome://`、`file://` 和无痕页面不可访问。请求参数不能临时覆盖策略。
+
+## 0.4.0 观察与连续操作
+
+- `tab.snapshot` 可选 compact:true 去掉无意义重复节点；detailed:true 返回 metadataVersion:2、documentKey、文档 URL/标题/加载/滚动信息、当前视口 text，以及控件的 visible/occluded、checked/selected/expanded、原生 options、opensNewTab。敏感和不可编辑字段不返回输入值。
+- `tab.type` 可选 replace:true，以原生编辑替换并核对输入值，返回 verified。默认仍为追加输入。
+- `tab.click` / `tab.type` / `tab.key` 可选 guarded:true，要求 detailed 快照并在执行前验证文档、节点语义和命中点；guarded key 必须指定 snapshotId/nodeRef。Enter 会触发 keypress。
+- `tab.select` 只接受该快照真实观察到的原生 optionIndex，变更被中断返回 OUTCOME_UNKNOWN；`tab.scroll` 可带 snapshotId 校验文档。
+- detailed 快照和受控动作在调试连接期间启用焦点模拟，成功、失败与超时均恢复；超时后的命令不能继续发送。
+- `tab.list` 可返回 openerTabId；已知 target=_blank 的受控点击会先激活来源标签页，保持 Chrome 的 opener 归因。
+- browser.run 是 CLI/MCP 客户端组合接口，不是 broker socket 方法。支持固定 search/navigate/fill 和 sequence 动作清单，详见 [工作流说明](browser-workflows.md)。

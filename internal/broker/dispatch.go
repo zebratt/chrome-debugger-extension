@@ -12,7 +12,7 @@ import (
 var publicMethods = []string{
 	"system.ping", "system.policy", "system.capabilities", "browser.list",
 	"tab.list", "tab.open", "tab.info", "tab.navigate", "tab.snapshot", "tab.screenshot",
-	"tab.claim", "tab.renew", "tab.release", "tab.click", "tab.type", "tab.key", "tab.scroll", "tab.wait", "cdp.send",
+	"tab.claim", "tab.renew", "tab.release", "tab.click", "tab.select", "tab.type", "tab.key", "tab.scroll", "tab.wait", "cdp.send",
 }
 
 func (server *Server) handleClient(conn net.Conn, decoder *json.Decoder, first json.RawMessage) {
@@ -225,7 +225,7 @@ func (server *Server) dispatch(request protocol.Request) protocol.Response {
 			return *blocked
 		}
 		return server.forwardAction(params.ProfileID, params.TabID, withExpectedURL(request, url))
-	case "tab.click", "tab.type", "tab.key", "tab.scroll":
+	case "tab.click", "tab.select", "tab.type", "tab.key", "tab.scroll":
 		var params targetParams
 		if err := json.Unmarshal(request.Params, &params); err != nil || params.ProfileID == "" || params.TabID <= 0 {
 			return protocol.ErrorResponse(request.ID, "INVALID_PARAMS", "profileId and tabId are required", false)
