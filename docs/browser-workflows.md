@@ -54,7 +54,9 @@
 
 默认只允许起始 origin，allowedOrigins 指定额外精确 origin。followNewTabs 默认 false，新标签页出现时返回 NEW_TAB_OPENED 和 nextTabId；显式开启后只接管唯一、可归因于 opener 且 origin 已允许的子标签页。每个标签页使用独立租约。
 
-调用者可提供已有 leaseToken；连接器续租但不释放调用者的令牌。由工作流申请的租约在退出时释放。
+调用者可提供已有 leaseToken；连接器续租但不释放调用者的令牌。工作流使用独立心跳，在等待页面、连续 wait/assert 或慢请求期间每隔最多 10 秒续租，不依赖下一次写动作才续租。由工作流申请的全部租约（包括跟随的新标签页）在完成、失败、超时或取消时释放。先停止心跳，再在统一的 2 秒清理窗口内释放；清理失败且步骤已完成时返回 RELEASE_FAILED，并保留完成进度。metrics.browser_calls 包含本次工作流的后台续租和释放请求。
+
+后台续租失败后不自动重新 claim，后续写请求返回租约失败原因；确认连接和页面状态后由调用者决定恢复。SIGINT/SIGTERM 会取消执行并清理租约；SIGKILL/崩溃由 30 秒 TTL 兜底。MCP 外层会话申请的令牌可以传给工作流，工作流返回后仍由该 MCP 会话维护，直到显式 tab_release 或会话退出。
 
 ## 固定工作流
 

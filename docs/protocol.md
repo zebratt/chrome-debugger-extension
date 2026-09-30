@@ -8,6 +8,8 @@ Chrome Connector 在 macOS 当前用户的私有 Unix socket 上提供 JSON-RPC 
 - broker 首次启动后等待宿主登记最多 3 秒，随后返回 `ready` 或 `offline`。宿主可稍后加入。最后一个客户端离开且没有请求或有效占用权时，broker 空闲 120 秒后退出。
 - 单次请求的 `params` 最多 512 KiB；超过上限返回 `PAYLOAD_TOO_LARGE`，不会把超限消息送入 Native Messaging 宿主。
 - 同一 Chrome 配置文件可以同时被多个 agent 读取。写操作需要该标签页的 `leaseToken`；令牌有效期 30 秒，可续租。`tab.open` 自动返回新标签页的令牌。
+- MCP 自动维护本会话通过 `tab_claim` / `tab_open` 取得的租约，独立心跳每隔最多 10 秒续租，慢页面请求和工具调用间隔不会阻塞续租。`expiresAt` 是响应生成时的有效期，后台续租会继续延长它。会话 EOF、输入/输出失败、SIGINT/SIGTERM 时停止心跳，并在 2 秒清理窗口内释放自有租约；任务完成而 MCP 连接仍保持时，应显式 `tab_release`。
+- `browser.run` 在执行及等待期间自动续租，退出时释放本次申请的租约；传入的 leaseToken 只维护不释放。单次低级 CLI 命令和直接 socket 客户端没有跨请求会话管理，仍需手动 `tab.renew` / `tab.release`。崩溃或 SIGKILL 无法执行退出清理，剩余租约按原 TTL 过期。
 - 扩展重载、broker 重启或页面导航会使旧节点引用失效。每个快照最多保留 60 秒，同一标签页最多保留 16 个；过期后重新调用 `tab.snapshot`。broker 重启后还需重新领取标签页占用权。
 
 ## 方法
@@ -45,6 +47,7 @@ Chrome Connector 在 macOS 当前用户的私有 Unix socket 上提供 JSON-RPC 
 - `BROWSER_OFFLINE`：配置文件宿主未连接；运行 `doctor` 并检查扩展。
 - `VERSION_MISMATCH`：扩展与 broker 协议不兼容；更新或重载扩展，再运行 `doctor`。
 - `TAB_BUSY` / `LEASE_EXPIRED`：写入占用权冲突或过期；按需续租或重新 `tab.claim`。
+- `LEASE_RENEW_FAILED`：调用端后台续租遇到传输错误。停止该租约心跳，后续使用同一令牌的写请求会返回该错误；读取仍允许。检查连接和页面状态后显式重新 `tab.claim`。续租收到协议错误时保留原错误类别；不会自动重新 claim 或重放动作。
 - `STALE_SNAPSHOT`：页面或节点引用已变化；重新 `tab.snapshot`。
 - `POLICY_DENIED`：站点、页面类型或 CDP 域被本地策略拒绝。
 - `UNSUPPORTED_CDP_DOMAIN`：Chrome 扩展调试 API 不支持该协议域。

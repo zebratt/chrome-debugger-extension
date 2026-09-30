@@ -7,10 +7,6 @@ import (
 	"time"
 )
 
-type tabClaim struct {
-	id    int
-	token string
-}
 type tabInfo struct {
 	ID     int    `json:"tabId"`
 	Opener int    `json:"openerTabId"`

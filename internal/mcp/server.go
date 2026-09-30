@@ -1,11 +1,14 @@
 package mcp
 
 import (
+	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 
 	"chrome-connector/internal/automation"
+	"chrome-connector/internal/client"
 	"chrome-connector/internal/protocol"
 	"chrome-connector/internal/version"
 )
@@ -36,11 +39,11 @@ func tools() []tool {
 		{"browser_list", "List connected Chrome profiles", object(nil), "browser.list"},
 		{"browser_run", "Run exact-label search/navigation/fill or an explicit sequence of caller-authorized browser actions. Runs locally with no model calls. Reobserves targets, recovers pre-action stale state and verifies result conditions. Inspect completedActions, nextAction and steps before resuming; never replay unknown actions.", automation.InputSchema(), "browser.run"},
 		{"tab_list", "List eligible tabs in a profile", object([]string{"profileId"}), "tab.list"},
-		{"tab_open", "Open a web page and claim its tab", object([]string{"profileId", "url"}), "tab.open"},
+		{"tab_open", "Open a web page and claim its tab; automatically renewed until released or this MCP session ends", object([]string{"profileId", "url"}), "tab.open"},
 		{"tab_info", "Inspect an eligible tab", object([]string{"profileId", "tabId"}), "tab.info"},
 		{"tab_snapshot", "Read the accessibility snapshot", object([]string{"profileId", "tabId"}), "tab.snapshot"},
 		{"tab_screenshot", "Capture a PNG screenshot", object([]string{"profileId", "tabId"}), "tab.screenshot"},
-		{"tab_claim", "Claim a tab before modifying it", object([]string{"profileId", "tabId"}), "tab.claim"},
+		{"tab_claim", "Claim a tab before modifying it; automatically renewed until released or this MCP session ends", object([]string{"profileId", "tabId"}), "tab.claim"},
 		{"tab_renew", "Renew a tab claim", object([]string{"profileId", "tabId", "leaseToken"}), "tab.renew"},
 		{"tab_release", "Release a tab claim", object([]string{"profileId", "tabId", "leaseToken"}), "tab.release"},
 		{"tab_navigate", "Navigate a claimed tab", object([]string{"profileId", "tabId", "url", "leaseToken"}), "tab.navigate"},
@@ -57,21 +60,46 @@ func tools() []tool {
 }
 
 func Run(input io.Reader, output io.Writer, call func(method string, params any) (protocol.Response, error)) error {
-	decoder := json.NewDecoder(input)
+	return RunContext(context.Background(), input, output, func(_ context.Context, method string, params any) (protocol.Response, error) {
+		return call(method, params)
+	})
+}
+
+// RunContext releases this session's claims on EOF, protocol/output failure,
+// or cancellation. It closes a closable input on exit to unblock its reader.
+func RunContext(ctx context.Context, input io.Reader, output io.Writer, call func(context.Context, string, any) (protocol.Response, error)) (runErr error) {
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
+	leases := client.NewLeaseSession(ctx, call)
+	defer func() { runErr = errors.Join(runErr, leases.Close()) }()
+	stop := context.AfterFunc(ctx, func() {
+		if closer, ok := input.(io.Closer); ok {
+			_ = closer.Close()
+		}
+	})
+	defer func() {
+		cancel()
+		stop()
+		if closer, ok := input.(io.Closer); ok {
+			_ = closer.Close()
+		}
+	}()
+	messages := readMessages(ctx, input)
 	encoder := json.NewEncoder(output)
 	for {
-		var message struct {
-			JSONRPC string          `json:"jsonrpc"`
-			ID      json.RawMessage `json:"id"`
-			Method  string          `json:"method"`
-			Params  json.RawMessage `json:"params"`
+		var incoming incomingMessage
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case incoming = <-messages:
 		}
-		if err := decoder.Decode(&message); err != nil {
-			if err == io.EOF {
+		if incoming.err != nil {
+			if incoming.err == io.EOF {
 				return nil
 			}
-			return err
+			return incoming.err
 		}
+		message := incoming.message
 		if len(message.ID) == 0 {
 			continue
 		}
@@ -104,7 +132,7 @@ func Run(input io.Reader, output io.Writer, call func(method string, params any)
 				rpcError = map[string]any{"code": -32602, "message": "unknown tool"}
 				break
 			}
-			response, err := call(method, params.Arguments)
+			response, err := leases.Call(ctx, method, params.Arguments)
 			if err != nil {
 				result = map[string]any{"content": []any{map[string]any{"type": "text", "text": err.Error()}}, "isError": true}
 			} else if response.Error != nil {

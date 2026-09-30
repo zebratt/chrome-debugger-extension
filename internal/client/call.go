@@ -1,6 +1,7 @@
 package client
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"net"
@@ -15,12 +16,21 @@ import (
 var sequence uint64
 
 func Call(socket, method string, params any, timeout time.Duration) (protocol.Response, error) {
-	connection, err := net.DialTimeout("unix", socket, timeout)
+	return CallContext(context.Background(), socket, method, params, timeout)
+}
+
+func CallContext(ctx context.Context, socket, method string, params any, timeout time.Duration) (protocol.Response, error) {
+	ctx, cancel := context.WithTimeout(ctx, timeout)
+	defer cancel()
+	connection, err := (&net.Dialer{}).DialContext(ctx, "unix", socket)
 	if err != nil {
 		return protocol.Response{}, err
 	}
 	defer connection.Close()
-	if err := connection.SetDeadline(time.Now().Add(timeout)); err != nil {
+	stop := context.AfterFunc(ctx, func() { connection.Close() })
+	defer stop()
+	deadline, _ := ctx.Deadline()
+	if err := connection.SetDeadline(deadline); err != nil {
 		return protocol.Response{}, err
 	}
 	id := fmt.Sprintf("client-%d-%d", os.Getpid(), atomic.AddUint64(&sequence, 1))

@@ -24,7 +24,7 @@ func callWithWorkflow(ctx context.Context, socket, method string, params any) (p
 				timeout = remaining
 			}
 		}
-		return client.Call(socket, method, params, timeout)
+		return client.CallContext(ctx, socket, method, params, timeout)
 	}
 	if method != "browser.run" {
 		return call(ctx, method, params)

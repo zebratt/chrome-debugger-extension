@@ -7,6 +7,8 @@ import (
 	"net/url"
 	"strings"
 	"time"
+
+	"chrome-connector/internal/client"
 )
 
 type session struct {
@@ -15,7 +17,6 @@ type session struct {
 	result        Result
 	origin, lease string
 	last          Snapshot
-	claims        []tabClaim
 	priorTabs     map[int]bool
 	tabTrackingAt time.Time
 	expectedChild bool
@@ -37,7 +38,15 @@ func (r Runner) Run(ctx context.Context, req Request) (result Result) {
 		err = errors.New("browser connection is unavailable")
 	}
 	if err == nil {
+		leases := client.NewLeaseSession(ctx, r.Call)
+		defer leases.Close()
+		s.runner.Call = leases.Call
 		err = s.execute(ctx)
+		if cleanupErr := leases.Close(); cleanupErr != nil && err == nil {
+			s.result.Status = "needs_attention"
+			err = fail("RELEASE_FAILED", cleanupErr.Error())
+		}
+		s.result.Metrics.BrowserCalls += leases.MaintenanceCalls()
 	}
 	if err != nil {
 		var f *failure
@@ -49,17 +58,6 @@ func (r Runner) Run(ctx context.Context, req Request) (result Result) {
 			s.result.Message = err.Error()
 		}
 	}
-	for _, claim := range s.claims {
-		cleanup, stop := context.WithTimeout(context.Background(), 2*time.Second)
-		_, releaseErr := s.rpc(cleanup, "tab.release", map[string]any{"tabId": claim.id, "leaseToken": claim.token})
-		stop()
-		if releaseErr != nil && s.result.Status == "completed" {
-			s.result.Status = "needs_attention"
-			s.result.Code = "RELEASE_FAILED"
-			s.result.Message = "steps finished but a tab claim could not be released"
-		}
-	}
-
 	s.result.Metrics.DurationMS = time.Since(start).Milliseconds()
 	return s.result
 }
@@ -154,7 +152,6 @@ func (s *session) acquire(ctx context.Context) error {
 		return fail("INVALID_BROWSER_RESPONSE", "claim did not return a lease token")
 	}
 	s.lease = v.Token
-	s.claims = append(s.claims, tabClaim{s.req.TabID, s.lease})
 	return nil
 }
 func (s *session) act(ctx context.Context, method string, params map[string]any) (json.RawMessage, error) {

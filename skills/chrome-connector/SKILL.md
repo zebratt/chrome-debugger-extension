@@ -11,7 +11,7 @@ description: 当 agent 需要在 macOS 复用当前用户正在运行的 Chrome 
 
 1. 用 `browser.list` 发现 profileId，再用 `tab.list` 选择标签页，或 `tab.open` 打开新页面。不要猜测“当前标签页”。
 2. `tab.snapshot` 使用 `compact:true,detailed:true` 获取文档状态、当前视口文字、控件信息、snapshotId/nodeRef。引用仅对当前观察有效；截图使用 `tab.screenshot`。
-3. 低级写操作先 `tab.claim` 获取 leaseToken，结束后 `tab.release`；令牌 30 秒过期，可续租。`tab.open` 已返回新标签页的令牌。
+3. 低级写操作先 `tab.claim` 获取 leaseToken，任务结束后 `tab.release`；`tab.open` 已返回新标签页的令牌。MCP 会自动续租，并在会话退出时释放自有租约；连接继续用于其他任务时仍须显式释放。单次低级 CLI / socket 调用的令牌仍为 30 秒有效，跨命令需手动 renew；明确的连续步骤优先交给 browser.run 自动管理。
 
 ```bash
 chrome-connector call browser.list
@@ -49,7 +49,8 @@ MCP 工具使用下划线命名，如 browser_list、tab_snapshot、browser_run�
 - allowedOrigins 只能列任务允许的额外精确 origin。followNewTabs:true 只跟随唯一、opener 可归因且 origin 已允许的子标签页。已知 target=_blank 点击会先激活来源标签页。
 - 只读失效会自动恢复；明确未执行的 stale 目标会重新定位。OUTCOME_UNKNOWN 或 INPUT_UNVERIFIED 必须检查真实页面后再继续，不重放已尝试动作。
 - 检查 status、outcome、steps[].execution、completedActions 和 nextAction。nextAction 从零开始；动作成功后的观察失败也会保留已完成前缀，不要从头重跑整个清单。
-- 可传已有 leaseToken；工作流续租但不释放调用者的令牌，自行申请的租约会释放。
+- 可传已有 leaseToken；工作流在执行与等待期间后台续租，完成、失败或取消后停止维护；不释放调用者的令牌，自行申请的租约会释放。MCP 外层会话持有的令牌在工作流结束后继续由该会话维护。
+- LEASE_RENEW_FAILED 或 LEASE_EXPIRED 后先检查连接和页面，再显式 claim。不会自动抢占标签页或重放未知动作；SIGKILL/进程崩溃时剩余租约由 30 秒 TTL 兜底。
 
 固定填表、搜索、同源导航也可用 fill/search/navigate。目标必须唯一精确匹配；fill 替换并验证文字但不提交，search 需要显式结果条件。
 

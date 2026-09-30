@@ -28,6 +28,7 @@ agent CLI / MCP / JSON-RPC socket 客户端
 - broker 负责站点及 CDP 策略、标签页 30 秒占用权和请求路由；扩展在执行前再次检查页面 URL、无痕状态和 CDP 域。`cdp.send` 默认关闭。页面内容、输入和截图不会持久化到服务端。
 - 扩展按标签页串行使用 `chrome.debugger`，读取间也释放调试器。每个标签页最多保留 16 个快照，每个快照保留 60 秒。客户端之间的快照互不覆盖。动作已发送但响应丢失时 broker 返回 `OUTCOME_UNKNOWN`，客户端重新观察后自行决定下一步。
 - MCP 与 CLI 复用同一个 broker RPC 合同。MCP 截图结果是 `image/png`；CLI 可用 `--output` 将图片写到不覆盖已有文件的私有路径。
+- `internal/client.LeaseSession` 为 MCP 会话及单次 browser.run 管理租约；每个租约独立心跳，最多间隔 10 秒，续租/清理请求均使用可取消且有界的 socket 调用。关闭时停止心跳并释放自有租约，借用令牌不释放；续租失败停止维护，不重新 claim 或重放动作。低级 CLI 保持跨进程显式令牌合同。
 
 接口字段和错误语义见 [协议](../protocol.md)，本机安装与回滚见 [安装说明](../install-macos.md)。
 

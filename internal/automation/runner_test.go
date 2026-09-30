@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"strings"
+	"sync"
 	"testing"
 )
 
@@ -15,6 +16,7 @@ func input(name, value string) Node {
 }
 
 type scene struct {
+	mu                                                            sync.Mutex
 	url, text, ready                                              string
 	nodes                                                         []Node
 	refs                                                          map[string]int
@@ -30,6 +32,8 @@ func newScene(nodes ...Node) *scene {
 	return &scene{url: "https://example.test/start", ready: "complete", nodes: nodes}
 }
 func (b *scene) call(_ context.Context, method string, params any) (protocol.Response, error) {
+	b.mu.Lock()
+	defer b.mu.Unlock()
 	p := params.(map[string]any)
 	value := any(map[string]any{})
 	switch method {

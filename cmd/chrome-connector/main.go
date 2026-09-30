@@ -109,6 +109,8 @@ func run(args []string, stdout, stderr io.Writer) int {
 		fmt.Fprintln(stderr, "unknown broker command")
 		return 2
 	case "call":
+		ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+		defer stop()
 		params, outputPath, err := callArguments(args)
 		if err != nil {
 			fmt.Fprintln(stderr, err)
@@ -118,7 +120,7 @@ func run(args []string, stdout, stderr io.Writer) int {
 			fmt.Fprintln(stderr, err)
 			return 1
 		}
-		response, err := callWithWorkflow(context.Background(), paths.BrokerSocket, args[1], params)
+		response, err := callWithWorkflow(ctx, paths.BrokerSocket, args[1], params)
 		if err != nil {
 			fmt.Fprintln(stderr, err)
 			return 1
@@ -140,11 +142,20 @@ func run(args []string, stdout, stderr io.Writer) int {
 		}
 		return 0
 	case "mcp":
-		if err := mcp.Run(os.Stdin, stdout, func(method string, params any) (protocol.Response, error) {
-			if err := ensureBroker(paths); err != nil {
-				return protocol.Response{}, err
+		// A closed stdout pipe must return EPIPE to RunContext so its deferred
+		// lease cleanup runs, rather than terminating the process via SIGPIPE.
+		signal.Ignore(syscall.SIGPIPE)
+		defer signal.Reset(syscall.SIGPIPE)
+		ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+		defer stop()
+		if err := mcp.RunContext(ctx, os.Stdin, stdout, func(ctx context.Context, method string, params any) (protocol.Response, error) {
+			// Heartbeats and cleanup must never restart a stopped broker.
+			if method != "tab.renew" && method != "tab.release" {
+				if err := ensureBroker(paths); err != nil {
+					return protocol.Response{}, err
+				}
 			}
-			return callWithWorkflow(context.Background(), paths.BrokerSocket, method, params)
+			return callWithWorkflow(ctx, paths.BrokerSocket, method, params)
 		}); err != nil {
 			fmt.Fprintln(stderr, err)
 			return 1
